@@ -27,7 +27,8 @@ spec:
 
             if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
                 if [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.0" ]] || 
-                   [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.1" ]]; then
+                   [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.1" ]] ||
+                   [[ "$(tasks.check-cp4i-version.results.output)" == "CD" ]]; then
                     if [[ "$(params.DEPLOY_API_CONNECT_DEMOS)" == "true" ]]; then
                         if [[ ! -z $(oc get deployment datapower-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]] &&
                            [[ ! -z $(oc get deployment ibm-apiconnect -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]]; then
@@ -319,7 +320,7 @@ spec:
                     else
                         echo "----------------------------"
                         echo "Pipeline CP4I Demo didn't run. The version installed of Platform UI is not supported by this Pipeline."              
-                        echo "Supported versions are 16.1.0 and 16.1.1. Upgrade Platform UI and try again."
+                        echo "Supported versions are 16.1.0, 16.1.1 or 16.1.2. Upgrade Platform UI and try again."
                         echo "----------------------------"
                         oc create configmap pipeline-cp4i-config-output -n default \
                           --from-literal=msg="Pipeline CP4I Demo didn't run. The version installed of Platform UI is not compatible."
@@ -463,7 +464,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250619-001"
+            REPO_SIGNATURE="JGR-20250702-003"
 
             echo "Setting up workspace for pipeline"
             
@@ -507,10 +508,6 @@ spec:
 
             printf true | tee $(results.output.path)
 
-            tar -xvzf cp4i-deployer-helper/extras/toolkit-linux.tgz
-
-            chmod +x apic
-
             git clone --single-branch --branch dev https://github.com/gomezrjo/cp4i-ace-artifacts.git
 
             echo "Workspace for pipeline is ready"
@@ -529,15 +526,39 @@ spec:
           value: >-
             set -o xtrace
 
+            cd workspace/cp4i-ws
+            
             echo "Getting Platform UI version"
 
-            CP4I_VER=$(oc get platformnavigator cp4i-navigator -n $(params.CP4I_NAMESPACE) --ignore-not-found -o jsonpath={.spec.version})
+            CP4I_VER_NUM=$(oc get platformnavigator cp4i-navigator -n $(params.CP4I_NAMESPACE) --ignore-not-found -o jsonpath={.spec.version})
 
-            if [[ -z "${CP4I_VER}" ]]; then
+            if [[ -z "${CP4I_VER_NUM}" ]]; then
                 echo "Platform UI instance not deployed"
                 CP4I_VER="0.0.0"
+            else
+                case "${CP4I_VER_NUM}" in
+                    "16.1.0")
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.2-ifix2.tgz
+                        chmod +x apic
+                        CP4I_VER="${CP4I_VER_NUM}"
+                        ;;
+                    "16.1.1")
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux.tgz 
+                        chmod +x apic
+                        CP4I_VER="${CP4I_VER_NUM}"
+                        ;;
+                    "16.1.2")
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.10.0.tgz
+                        chmod +x apic
+                        CP4I_VER="CD"
+                        ;;
+                    *)
+                        echo "Platform UI instance version is not supported by pipeline"
+                        CP4I_VER="${CP4I_VER_NUM}"
+                        ;;
+                esac
             fi
-
+            
             echo "Passing CP4I version to the rest of the pipeline"
 
             printf "${CP4I_VER}" | tee $(results.output.path)
@@ -627,7 +648,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"] 
+          values: ["16.1.0", "16.1.1", "CD"] 
       workspaces:
         - name: cp4i-ws
     - name: create-extra-namespaces
@@ -666,7 +687,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
     - name: get-entitlement-key
       params:
         - name: KEY_ID
@@ -684,7 +705,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
     - name: create-ibm-entitlement-key
       params:
         - name: SCRIPT
@@ -737,7 +758,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
     - name: event-streams-instance-configuration
       params:
         - name: SCRIPT
@@ -790,7 +811,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -820,9 +841,25 @@ spec:
 
             ES_BOOTSTRAP_SERVER=$(oc get eventstreams ${ES_INST_NAME} -n $(params.ES_NAMESPACE) -o=jsonpath='{range .status.kafkaListeners[*]}{.name} {.bootstrapServers}{"\n"}{end}' | awk '$1=="authsslsvc" {print $2}')
 
-            echo "Updating template with Bootsrap info..."
+            echo "Updating template with Bootstrap info..."
 
-            ES_VERSION="11.7.0"
+            case "$(tasks.check-cp4i-version.results.output)" in
+
+                "16.1.1")
+            
+                    ES_VERSION='11.7.0'
+
+                    ;;
+
+                "16.1.0" | "CD")
+                    
+                    ES_VERSION="11.8.1"
+                    
+                    ;;
+            
+            esac
+
+            
 
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-connect.yaml ;) | \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
@@ -870,7 +907,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -955,7 +992,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -1022,7 +1059,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -1120,7 +1157,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -1235,7 +1272,7 @@ spec:
             fi
 
             if [[ "${clusterId}" != "00000000-0000-0000-0000-000000000000" ]]; then
-                topics=("CANCELLATIONS" "CUSTOMERS.NEW" "DOOR.BADGEIN" "ORDERS.ONLINE" "ORDERS.NEW" "STOCK.NOSTOCK" "SENSOR.READINGS" "STOCK.MOVEMENT" "PRODUCT.RETURNS" "PRODUCT.REVIEWS" "cp4i-es-demo-topic")
+                topics=("CANCELLATIONS" "CUSTOMERS.NEW" "DOOR.BADGEIN" "ORDERS.ONLINE" "ORDERS.NEW" "ORDERS.ABANDONED" "STOCK.NOSTOCK" "SENSOR.READINGS" "STOCK.MOVEMENT" "PRODUCT.RETURNS" "PRODUCT.REVIEWS" "TRANSACTIONS" "cp4i-es-demo-topic")
 
                 for topic in "${topics[@]}"
 
@@ -1344,7 +1381,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)"
           operator: in
           values: ["true"]
@@ -1451,7 +1488,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -1536,7 +1573,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_DATAPOWER_DEMOS)"
           operator: in
           values: ["true"]
@@ -1610,6 +1647,14 @@ spec:
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
             
             esac
 
@@ -1643,7 +1688,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -1722,7 +1767,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -1810,6 +1855,14 @@ spec:
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
             
             esac
 
@@ -1891,7 +1944,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -1925,6 +1978,14 @@ spec:
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
             
             esac
 
@@ -1960,7 +2021,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -1994,6 +2055,14 @@ spec:
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
             
             esac
 
@@ -2030,7 +2099,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2064,6 +2133,14 @@ spec:
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
             
             esac
 
@@ -2099,7 +2176,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2232,8 +2309,22 @@ spec:
             echo "Deploying Queue Manager with CRR configuration..."
 
             echo "Setting MQ Version"
+
+            case "$(tasks.check-cp4i-version.results.output)" in
+
+                "16.1.1")
             
-            MQ_VERSION='9.4.2.1-r2'
+                    MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r1'
+                    
+                    ;;
+            
+            esac            
             
             echo "Preparing queue manager instance manifest"
 
@@ -2283,7 +2374,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.1"]
+          values: ["16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2343,7 +2434,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2375,7 +2466,7 @@ spec:
             
                     ;;
             
-                "16.1.1")
+                "16.1.1" | "CD")
             
                     IR_STATUS_PHASE='Stopped'
             
@@ -2410,7 +2501,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2497,7 +2588,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2560,7 +2651,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2638,7 +2729,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2702,7 +2793,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2833,7 +2924,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -2903,7 +2994,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -2970,7 +3061,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -3058,7 +3149,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -3107,7 +3198,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -3189,7 +3280,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3271,7 +3362,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3493,7 +3584,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3559,7 +3650,11 @@ spec:
 
             echo "Getting Portal URL..."
 
-            APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
+            if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
+            else
+                APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
+            fi
 
             echo "Getting Sandbox Catalog definition..."
 
@@ -3694,7 +3789,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3755,7 +3850,11 @@ spec:
             
             ./apic login --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
-            PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
+            if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+            else
+                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
+            fi      
 
             USER_REGISTRY_URL=$(./apic user-registries:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}-catalog" '$1 == catname {print $2}')
 
@@ -3778,10 +3877,18 @@ spec:
             
             if [[ -z $CORG_USER ]]; then
                 echo "Creating Consumer Org User"
-                OWNER_URL=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json | awk '{print $4}')
+                if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                    OWNER_URL=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json | awk '{print $3}')
+                else
+                    OWNER_URL=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json | awk '{print $4}')
+                fi 
             else                
                 echo "Consumer Org User andre already exists."
-                OWNER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk '$1 == "andre" {print $4}')
+                if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                    OWNER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk '$1 == "andre" {print $3}')
+                else
+                    OWNER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk '$1 == "andre" {print $4}')
+                fi                
             fi 
 
             echo "Preparing Consumer Org File"
@@ -3820,7 +3927,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3877,13 +3984,21 @@ spec:
             
             ./apic login --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
-            PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
+            if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then
+                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+            else
+                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')     
+            fi 
 
             CATALOG_URL=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
 
-            CONSUMER_ORG_URL=$(./apic consumer-orgs:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $4}')
-
-            PRODUCT_URL=$(./apic products:list --scope catalog --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $4}')
+            if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                CONSUMER_ORG_URL=$(./apic consumer-orgs:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $3}')
+                PRODUCT_URL=$(./apic products:list --scope catalog --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $3}')
+            else
+                CONSUMER_ORG_URL=$(./apic consumer-orgs:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $4}')
+                PRODUCT_URL=$(./apic products:list --scope catalog --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $4}')
+            fi 
 
             echo "Preparing App File"
 
@@ -3993,7 +4108,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4252,7 +4367,7 @@ spec:
           values: ["true"] 
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4383,7 +4498,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1"]
+          values: ["16.1.0", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
