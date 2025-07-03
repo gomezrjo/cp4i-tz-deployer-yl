@@ -1,6 +1,6 @@
 # cp4i-tz-deployer-yl
 
-This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS and v16.1.1 for CD) based on the CP4I end-to-end demo assets.
+This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS and v16.1.2 for CD) based on the CP4I end-to-end demo assets.
 
 This repo does not include the extra elements like Instana and Logging, but the core CP4I capabilities and License Service are included now.
 
@@ -20,9 +20,9 @@ To use this repo you need to have the `oc` command-line interface installed in y
 
 In case you do not have `tkn` already installed, use the following instructions based on your OS: [tekton cli](https://tekton.dev/docs/cli/)
 
-After login to your cluster, execute the following two commands depending if you want to install CP4I v16.1.0 or v16.1.1
+After login to your cluster, execute the following two commands depending if you want to install CP4I v16.1.0 or v16.1.2
 
-**CP4I v16.1.1**
+**CP4I v16.1.2**
 ```
 oc apply -f artifacts/pipeline1.yaml
 tkn pipeline start cp4i-demo \
