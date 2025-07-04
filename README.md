@@ -43,10 +43,10 @@ tkn pipeline start cp4i-demo \
     --param CP4I_VERSION="16.1.0"
 ```
 
-You do not have to add the version parameters when using CP4I v16.1.2 because that is the default version. Now, by default the pipeline will use **Local Security** for EEM and EP, if you want to use `KeyCloak` instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
+You do not have to add the version parameters when using CP4I v16.1.2 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
 ```
-    --param EA_OIDC="true"
+    --param EA_OIDC="false"
 ```
 
 Additionally, if you need to demo License Service you can add the following parameters as well. And do not forget to add a `\` at the end of the last line in order to include the new lines:
