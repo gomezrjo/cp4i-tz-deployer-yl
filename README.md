@@ -24,26 +24,26 @@ After login to your cluster, execute the following two commands depending if you
 
 **CP4I v16.1.2**
 ```
-oc apply -f artifacts/pipeline1.yaml
+oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=artifacts/workspace-template.yaml \
-    --pod-template artifacts/pod-template.yaml
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml
 ```
 
 **CP4I v16.1.0**
 ```
-oc apply -f artifacts/pipeline1.yaml
+oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=artifacts/workspace-template.yaml \
-    --pod-template artifacts/pod-template.yaml \
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml \
     --param CP4I_VERSION="16.1.0"
 ```
 
-You do not have to add the version parameters when using CP4I v16.1.1 because that is the default version. Now, by default the pipeline will use **Local Security** for EEM and EP, if you want to use `KeyCloak` instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
+You do not have to add the version parameters when using CP4I v16.1.2 because that is the default version. Now, by default the pipeline will use **Local Security** for EEM and EP, if you want to use `KeyCloak` instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
 ```
     --param EA_OIDC="true"
@@ -86,12 +86,12 @@ Note the core deployment does not include the extra demo assets like App Connect
 Then run the following two commands once the previous pipeline run has completed successfully. In the command I'm enabling integration between APIC and EEM using parameter *EEM_APIC_INT*, if you do not need to demo this functionality simply remove that line. The command also enables some extra WatsonX assets with parameter *EA_WATSONX*, but they rely on BAM that was deprecated recently, so even though you can deploy them, you won't be able to use them until an alternative is found, if you do not want to enable those assets remove that line.
 
 ```
-oc apply -f artifacts/pipeline2.yaml
+oc apply -f resources/pipeline2.yaml
 tkn pipeline start cp4i-config \
     --namespace default \
     --use-param-defaults \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=artifacts/workspace-template.yaml \
-    --pod-template artifacts/pod-template.yaml \
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml \
     --param EEM_APIC_INT="true" \
     --param EA_WATSONX="true" \
     --param EEM_TOKEN=<eem-token> \
