@@ -4289,7 +4289,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.1"]
+          values: ["16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
