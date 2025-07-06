@@ -8,19 +8,41 @@ It will get you an environment like the one below:
 
 ![Platform UI](images/Platform_UI.png)
 
-For these assets to work you will need an OCP cluster in TechZone using the **OpenShift Cluster (OCP-V) - IBM Cloud** template which is part of the *TechZone Certified Base Images* collection under *Base Openshift*. You can access the collection clicking [here](https://techzone.ibm.com/collection/tech-zone-certified-base-images/journey-base-open-shift). You can use the following image as a reference:
+For these assets to work you will need an OCP cluster in TechZone using either the **OpenShift Cluster (OCP-V) - IBM Cloud** or **OpenShift VMWare Cluster - UPI - Deployer - V2** templates which are part of the *TechZone Certified Base Images* collection under *Base Openshift*. You can access the collection clicking [here](https://techzone.ibm.com/collection/tech-zone-certified-base-images/journey-base-open-shift). You can use the following image as a reference:
 
 ![TechZone Collection](images/TZ_Collection.png)
 
-When making the reservation select **v4.16** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. Note you can use OCP v4.15 but I recommend you use the latest version if possible. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions external ODF storage. The following image shows the recommended values:
+When making the reservation select **v4.16** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. Note you can use OCP v4.15 but I recommend you use the latest version if possible. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions external ODF storage. The following images shows the recommended values for each type of cluster.
 
-![TechZone Reservation](images/TZ_Reservation.png)
+**OpenShift Cluster (OCP-V) - IBM Cloud:**
+![TechZone Reservation OCP-V](images/TZ_Reservation_ocpv.png)
+
+**OpenShift VMWare Cluster - UPI - Deployer - V2:**
+![TechZone Reservation Deployer](images/TZ_Reservation_vmw_upi.png)
 
 To use this repo you need to have the `oc` command-line interface installed in your workstation alongside with the `tkn` command-line interface.
 
 In case you do not have `tkn` already installed, use the following instructions based on your OS: [tekton cli](https://tekton.dev/docs/cli/)
 
-After login to your cluster, execute the following two commands depending if you want to install CP4I v16.1.0 or v16.1.2
+After login to your cluster I suggest you do some validations before running the pipelines to make sure you cluster is fully ready.
+
+1. Confirm the cluster has enough capacity.
+    ```
+    utilities/check-compute.sh
+    ```
+    Both vCPU and Memory must pass, otherwise you should request a new cluster with the characteristics mentioned above.
+2. Confirm the minimum operators and storage classes are available in the cluster.
+    ```
+    utilities/check-pre-reqs.sh
+    ```
+    If any of the items reports a `fail` status you should contact TZ Support to investigate the issues before moving forward.
+
+Once you confirm the cluster meets all the requirements, decide if you want to install CP4I v16.1.0 or v16.1.2 and execute the corresponding commands based on the type of cluster you have provisioned.
+
+<details>
+<summary>
+OpenShift Cluster (OCP-V) - IBM Cloud
+</summary>
 
 **CP4I v16.1.2**
 ```
@@ -42,6 +64,44 @@ tkn pipeline start cp4i-demo \
     --pod-template resources/pod-template.yaml \
     --param CP4I_VERSION="16.1.0"
 ```
+</details>
+&nbsp; 
+
+<details>
+<summary>
+OpenShift VMWare Cluster - UPI - Deployer - V2
+</summary>
+
+**CP4I v16.1.2**
+```
+oc apply -f resources/pipeline1.yaml
+tkn pipeline start cp4i-demo \
+    --namespace default \
+    --use-param-defaults \
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml \
+    --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
+    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
+    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs"
+```
+
+**CP4I v16.1.0**
+```
+oc apply -f resources/pipeline1.yaml
+tkn pipeline start cp4i-demo \
+    --namespace default \
+    --use-param-defaults \
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml \
+    --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
+    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
+    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs" \
+    --param CP4I_VERSION="16.1.0"
+```
+
+</details>
+&nbsp; 
+
 
 You do not have to add the version parameters when using CP4I v16.1.2 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
@@ -56,7 +116,7 @@ Additionally, if you need to demo License Service you can add the following para
     --param DEPLOY_LICENSE_REPORTER="true"
 ```
 
-And in a little bit less than two hours, you will see the following result in the OCP Console and you will be ready to roll.
+Around two hours later, you will see the following result in the OCP Console and you will be ready to roll.
 
 ![OCP Console PL1](images/OCP_Console_PL1.png)
 
@@ -85,6 +145,11 @@ Note the core deployment does not include the extra demo assets like App Connect
 
 Then run the following two commands once the previous pipeline run has completed successfully. In the command I'm enabling integration between APIC and EEM using parameter *EEM_APIC_INT*, if you do not need to demo this functionality simply remove that line. The command also enables some extra WatsonX assets with parameter *EA_WATSONX*, but they rely on BAM that was deprecated recently, so even though you can deploy them, you won't be able to use them until an alternative is found, if you do not want to enable those assets remove that line.
 
+<details>
+<summary>
+OpenShift Cluster (OCP-V) - IBM Cloud
+</summary>
+
 ```
 oc apply -f resources/pipeline2.yaml
 tkn pipeline start cp4i-config \
@@ -98,7 +163,33 @@ tkn pipeline start cp4i-config \
     --param APIC_API_KEY=<api-key>
 ```
 
-After approximately fortyfive minutes, you will see the following result in the OCP Console and the full CP4I demo stack including Event Automation will be ready to be used.
+</details>
+&nbsp; 
+
+<details>
+<summary>
+OpenShift VMWare Cluster - UPI - Deployer - V2
+</summary>
+
+```
+oc apply -f resources/pipeline2.yaml
+tkn pipeline start cp4i-config \
+    --namespace default \
+    --use-param-defaults \
+    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
+    --pod-template resources/pod-template.yaml \
+    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
+    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs" \
+    --param EEM_APIC_INT="true" \
+    --param EA_WATSONX="true" \
+    --param EEM_TOKEN=<eem-token> \
+    --param APIC_API_KEY=<api-key>
+```
+
+</details>
+&nbsp; 
+
+After approximately one hour, you will see the following result in the OCP Console and the full CP4I demo stack including Event Automation will be ready to be used.
 
 ![OCP Console PL2](images/OCP_Console_PL2.png)
 
