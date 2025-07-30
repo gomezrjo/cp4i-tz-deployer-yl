@@ -2,6 +2,15 @@
 # This script requires the oc command being installed in your environment
 if [ ! command -v oc &> /dev/null ]; then echo "oc could not be found"; exit 1; fi;
 if [ ! command -v awk &> /dev/null ]; then echo "awk could not be found"; exit 1; fi;
+echo "Checking OCP version..."
+if [ "$(oc version -o json | jq -r '.openshiftVersion' | rev | cut -d'.' -f2- | rev)" -gt "4.16" ]
+then
+    echo "OCP version Fail"
+else
+    echo "OCP version Pass"
+fi
+#
+echo
 echo "Checking required operators to use pipelines..."
 if [ ! -z $(oc get csv --no-headers --ignore-not-found | awk '$1 ~ "openshift-pipelines-operator-rh" {print "True"}') ]
 then
