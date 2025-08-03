@@ -3,12 +3,15 @@
 if [ ! command -v oc &> /dev/null ]; then echo "oc could not be found"; exit 1; fi;
 if [ ! command -v awk &> /dev/null ]; then echo "awk could not be found"; exit 1; fi;
 echo "Checking OCP version..."
-if [ "$(oc version -o json | jq -r '.openshiftVersion' | rev | cut -d'.' -f2- | rev)" -gt "4.16" ]
-then
-    echo "OCP version Fail"
-else
-    echo "OCP version Pass"
-fi
+OCP_VER=$(oc version -o json | jq -r '.openshiftVersion' | rev | cut -d'.' -f2- | rev)
+case "$OCP_VER" in
+    "4.14"|"4.15"|"4.16"|"4.17"|"4.18")
+        echo "OCP version Pass"
+        ;;
+    *)
+        echo "OCP version Fail"
+        ;;
+esac
 #
 echo
 echo "Checking required operators to use pipelines..."
