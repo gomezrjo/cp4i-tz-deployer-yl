@@ -23,6 +23,8 @@ spec:
 
             oc delete configmap/pipeline-qmgr-demo-output -n default --ignore-not-found=true 
 
+            oc delete configmap/pipeline-qmgr-nha-output -n default --ignore-not-found=true 
+
             oc delete configmap/pipeline-qmgr-crr-output -n default --ignore-not-found=true 
 
             if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
@@ -229,6 +231,52 @@ spec:
                                 echo "----------------------------"
                                 oc create configmap pipeline-qmgr-demo-output -n default \
                                   --from-literal=msg="Pipeline CP4I Config run completed, but MQ Explorer JKS certificate was not configured because Queue Manager Demo instance is not available."
+                            fi
+                            if [[ ! -z "$(oc get queuemanager qmgr-native-ha -n $(params.MQ_NAMESPACE) --no-headers --ignore-not-found)" ]]; then 
+                                QMGR_NAME='qmgr-native-ha'
+                                QMGR_INT_NAME='QMGRNATIVEHA'
+                                QMGR_CHANNEL="MTLS.SVRCONN"
+                                QMGR_CERT_LABEL="qmgr-native-ha-app"
+                                QMGR_HOST=$(oc get route ${QMGR_NAME}-ibm-mq-qm -n $(params.MQ_NAMESPACE) -o jsonpath="{.spec.host}")
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ccdt.json ;) | \
+                QMGR_CHANNEL=${QMGR_CHANNEL} \
+                QMGR_HOST=${QMGR_HOST} \
+                QMGR_INT_NAME=${QMGR_INT_NAME} \
+                QMGR_CERT_LABEL=${QMGR_CERT_LABEL} \
+                sh > mqnhaccdt.json
+                                oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=ca.crt
+                                oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.crt
+                                oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.key
+                                openssl pkcs12 -export -in tls.crt -inkey tls.key -certfile ca.crt -out qmgr-server-nha-tls.p12 -name qmgr-native-ha-app -passout pass:password
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-mqclient.ini ;) | \
+                QMGR_CCDT_NAME='mqnhaccdt' \
+                QMGR_CERT_NAME='qmgr-server-nha-tls' \
+                sh > mqclient-nha.ini
+                                rm -f ca.crt
+                                rm -f tls.crt
+                                rm -f tls.key
+                                echo "----------------------------"
+                                echo "Info to demo MQ NativeHA..."
+                                echo "   QMgr Name: QMGRNATIVEHA"
+                                echo "   Queue Name: EXAMPLE.QUEUE"
+                                echo "   Files included in ConfigMap:"
+                                echo "      CCDT"
+                                echo "      mqclient.ini"
+                                echo "      P12 certificate"
+                                echo "----------------------------"
+                                oc create configmap pipeline-qmgr-nha-output -n default \
+                                  --from-literal=msg="Pipeline CP4I Config run completed" \
+                                  --from-literal=qmgr-name=QMGRNATIVEHA \
+                                  --from-literal=queue-name=EXAMPLE.QUEUE \
+                                  --from-file=mqnhaccdt.json \
+                                  --from-file=mqclient-nha.ini \
+                                  --from-file=qmgr-server-nha-tls.p12
+                            else
+                                echo "----------------------------"
+                                echo "MQ NativeHA assets were not installed because Queue Manager instance was not deployed."
+                                echo "----------------------------"
+                                oc create configmap pipeline-qmgr-nha-output -n default \
+                                  --from-literal=msg="Pipeline CP4I Config run completed, but MQ CCDT and MQClient.ini files were not configured because Queue Manager instance with NativeHA configuration is not available."
                             fi
                             if [[ ! -z "$(oc get queuemanager exampleqm -n $(params.MQ_NHACRR_DC1) --no-headers --ignore-not-found)" ]] &&
                                [[ ! -z "$(oc get queuemanager exampleqm -n $(params.MQ_NHACRR_DC2) --no-headers --ignore-not-found)" ]]; then
@@ -464,7 +512,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250804-001"
+            REPO_SIGNATURE="JGR-20250804-002"
 
             echo "Setting up workspace for pipeline"
             
