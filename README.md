@@ -201,6 +201,8 @@ pipeline-apic-demo-output
 pipeline-extra-api-gtwy-demo-output
 pipeline-dp-gtwy-demo-output
 pipeline-qmgr-demo-output
+pipeline-qmgr-nha-output
+pipeline-qmgr-crr-output
 ```
 
 And the commands to use `yq` to get the data without accessing the OCP Console are the following:
@@ -211,6 +213,16 @@ oc get configmap/pipeline-apic-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-extra-api-gtwy-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-dp-gtwy-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-qmgr-demo-output -n default -o yaml | yq .data
+oc get configmap/pipeline-qmgr-nha-output -n default -o yaml | yq .data
+oc get configmap/pipeline-qmgr-crr-output -n default -o yaml | yq .data
+```
+
+If you need to demo MQ Native HA, in addition to the commands above you also need to run the following commands to get the required CCDT, mqclient.ini and certificate that will be stored under the `artifacts` folder:
+
+```
+oc get configmap pipeline-qmgr-nha-output -n default -o jsonpath='{.data.mqnhaccdt\.json}' > artifacts/mqnhaccdt.json
+oc get configmap pipeline-qmgr-nha-output -n default -o jsonpath='{.data.mqclient-nha\.ini}' > artifacts/mqclient-nha.ini
+oc get configmap pipeline-qmgr-nha-output -o jsonpath='{.binaryData.qmgr-server-nha-tls\.p12}' | base64 -d > artifacts/qmgr-server-nha-tls.p12
 ```
 
 Clone and have fun. Happy demoing!
