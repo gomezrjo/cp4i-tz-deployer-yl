@@ -464,7 +464,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250803-002"
+            REPO_SIGNATURE="JGR-20250804-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -1779,6 +1779,141 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
+    - name: mq-native-ha-instance-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            if [[ -z $(oc get deployment ibm-mq-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]]; then 
+                echo "Skipping Queue Managers with CRR configuration deployment, Operator was not installed."
+                exit 0
+            fi
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Preconfiguring Queue Managers for Native HA..."
+
+            QMGR_NAME='qmgr-native-ha'
+
+            QMGR_CHANNEL="MTLS.SVRCONN"
+
+            oc apply -f resources/03j-qmgr-mqsc-ini-config-nha.yaml -n $(params.MQ_NAMESPACE)
+
+            echo "Creating QMgr CA..."
+    
+            oc apply -f resources/03h-qmgr-ss-issuer.yaml -n $(params.MQ_NAMESPACE)
+
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ca-cert.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                sh > qmgr-ca-cert.yaml
+
+            oc apply -f qmgr-ca-cert.yaml -n $(params.MQ_NAMESPACE)
+    
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ca-issuer.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                sh > qmgr-ca-issuer.yaml
+    
+            oc apply -f qmgr-ca-issuer.yaml -n $(params.MQ_NAMESPACE)
+    
+            echo "Creating Certificate Template..."
+    
+            OCP_CLUSTER_DOMAIN=$(oc get IngressController default -n openshift-ingress-operator -o jsonpath='{.status.domain}')
+        
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-certificate.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                QMGR_NAMESPACE=$(params.MQ_NAMESPACE) \
+                OCP_CLUSTER_DOMAIN=${OCP_CLUSTER_DOMAIN} \
+                sh > mq-certificate.yaml
+        
+            echo "Creating Certificate..."
+        
+            oc apply -f mq-certificate.yaml -n $(params.MQ_NAMESPACE)
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].type}'=Ready
+            certificate/${QMGR_NAME}-selfsigned-cert -n
+            $(params.MQ_NAMESPACE) 2>/dev/null; do sleep 10; done
+
+            echo "Preparing Route Template..."
+
+            MQ_CHANNEL_SNI=$(echo $QMGR_CHANNEL | tr '[:upper:]' '[:lower:]')
+
+            HOST_NAME="${MQ_CHANNEL_SNI//./2e-}${DC}.chl.mq.ibm.com"
+
+            ( echo "cat <<EOF" ; cat templates/template-mq-tls-route.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                QMGR_NAMESPACE=$(params.MQ_NAMESPACE) \
+                HOST_NAME=${HOST_NAME} \
+                sh > mq-tls-route.yaml
+
+            echo "Creating Route..."
+
+            oc create -f mq-tls-route.yaml
+    
+            echo "Queue Manager preconfiguration for Native HA completed."
+
+            echo "Deploying Queue Manager with Native HA configuration..."
+
+            echo "Setting MQ Version"
+
+            case "$(tasks.check-cp4i-version.results.output)" in
+    
+                "16.1.0")
+              
+                    MQ_VERSION='9.4.0.12-r1'
+        
+                    ;;
+
+                "16.1.1")
+            
+                    MQ_VERSION='9.4.2.1-r2'
+
+                    ;;
+
+                "CD")
+                    
+                    MQ_VERSION='9.4.3.0-r2'
+                    
+                    ;;
+            
+            esac            
+            
+            echo "Preparing queue manager instance manifest"
+
+            (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/12-qmgr-native-ha-instance.yaml ;) | \
+                MQ_VERSION=${MQ_VERSION} \
+                OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
+                sh > 12-qmgr-native-ha-instance.yaml
+
+            echo "Deploying queue manager instance"
+
+            oc apply -f 12-qmgr-native-ha-instance.yaml -n $(params.MQ_NAMESPACE)
+
+
+            while ! oc wait --for=jsonpath='{.status.phase}'=Running
+            queuemanager/${QMGR_NAME} -n
+            $(params.MQ_NAMESPACE)  2>/dev/null; do sleep 30; done
+
+            echo "Queue manager instance is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - mq-kafka-connectors-deployment
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.check-cp4i-version.results.output)"
+          operator: in
+          values: ["16.1.0", "16.1.1", "CD"]
+        - input: "$(params.DEPLOY_MQ_DEMOS)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
     - name: mq-uniform-cluster-deployment
       params:
         - name: SCRIPT
@@ -1934,7 +2069,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - mq-kafka-connectors-deployment
+        - mq-native-ha-instance-deployment
       taskRef:
         kind: Task
         name: jgr-task-0.2
