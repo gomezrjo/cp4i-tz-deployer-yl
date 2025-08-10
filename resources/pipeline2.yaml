@@ -513,13 +513,13 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250809-001"
+            REPO_SIGNATURE="JGR-20250810-001"
 
             echo "Setting up workspace for pipeline"
             
             cd workspace/cp4i-ws
             
-            git clone --single-branch --branch dev https://github.com/gomezrjo/cp4i-deployer-helper.git
+            git clone --single-branch --branch main https://github.com/gomezrjo/cp4i-deployer-helper.git
 
             echo "Checking helper repo."
 
