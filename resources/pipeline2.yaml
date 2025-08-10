@@ -28,7 +28,8 @@ spec:
             oc delete configmap/pipeline-qmgr-crr-output -n default --ignore-not-found=true 
 
             if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
-                if [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.0" ]] || 
+                if [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.0" ]] ||
+                   [[ "$(tasks.check-cp4i-version.results.output)" == "SC2" ]] ||
                    [[ "$(tasks.check-cp4i-version.results.output)" == "16.1.1" ]] ||
                    [[ "$(tasks.check-cp4i-version.results.output)" == "CD" ]]; then
                     if [[ "$(params.DEPLOY_API_CONNECT_DEMOS)" == "true" ]]; then
@@ -512,7 +513,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250804-002"
+            REPO_SIGNATURE="JGR-20250809-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -589,6 +590,7 @@ spec:
                         tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.2-ifix2.tgz
                         chmod +x apic
                         CP4I_VER="${CP4I_VER_NUM}"
+                        CP4I_VER="SC2"
                         ;;
                     "16.1.1")
                         tar -xvzf cp4i-deployer-helper/extras/toolkit-linux.tgz 
@@ -696,7 +698,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"] 
+          values: ["16.1.0", "SC2", "16.1.1", "CD"] 
       workspaces:
         - name: cp4i-ws
     - name: create-extra-namespaces
@@ -735,7 +737,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
     - name: get-entitlement-key
       params:
         - name: KEY_ID
@@ -753,7 +755,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
     - name: create-ibm-entitlement-key
       params:
         - name: SCRIPT
@@ -806,7 +808,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
     - name: event-streams-instance-configuration
       params:
         - name: SCRIPT
@@ -859,7 +861,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -899,7 +901,7 @@ spec:
 
                     ;;
 
-                "16.1.0" | "CD")
+                "16.1.0" | "SC2" | "CD")
                     
                     ES_VERSION="11.8.1"
                     
@@ -955,7 +957,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -1040,7 +1042,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -1107,7 +1109,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -1205,7 +1207,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -1429,7 +1431,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)"
           operator: in
           values: ["true"]
@@ -1536,7 +1538,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -1621,7 +1623,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_DATAPOWER_DEMOS)"
           operator: in
           values: ["true"]
@@ -1686,7 +1688,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     MQ_VERSION='9.4.0.12-r1'
             
@@ -1736,7 +1738,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -1815,7 +1817,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(tasks.setup-image-registry.results.output)"
           operator: in
           values: ["true"]
@@ -1906,7 +1908,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
     
-                "16.1.0")
+                "16.1.0" | "SC2")
               
                     MQ_VERSION='9.4.0.12-r1'
         
@@ -1956,7 +1958,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2029,7 +2031,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     MQ_VERSION='9.4.0.12-r1'
             
@@ -2127,7 +2129,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2152,7 +2154,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     MQ_VERSION='9.4.0.12-r1'
             
@@ -2204,7 +2206,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2229,7 +2231,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     MQ_VERSION='9.4.0.12-r1'
             
@@ -2282,7 +2284,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2307,7 +2309,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     MQ_VERSION='9.4.0.12-r1'
             
@@ -2359,7 +2361,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_MQ_DEMOS)"
           operator: in
           values: ["true"]
@@ -2495,7 +2497,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.1")
+                "16.1.1" | "SC2")
             
                     MQ_VERSION='9.4.2.1-r2'
 
@@ -2617,7 +2619,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2643,7 +2645,7 @@ spec:
 
             case "$(tasks.check-cp4i-version.results.output)" in
 
-                "16.1.0")
+                "16.1.0" | "SC2")
             
                     IR_STATUS_PHASE='Ready'
             
@@ -2684,7 +2686,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2771,7 +2773,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2834,7 +2836,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2912,7 +2914,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -2976,7 +2978,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -3107,7 +3109,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -3177,7 +3179,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -3244,7 +3246,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -3332,7 +3334,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_ACE_DEMOS)"
           operator: in
           values: ["true"]
@@ -3381,7 +3383,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_EVENT_STREAMS_DEMOS)"
           operator: in
           values: ["true"]
@@ -3463,7 +3465,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3545,7 +3547,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3767,7 +3769,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -3972,7 +3974,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4110,7 +4112,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4291,7 +4293,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4620,7 +4622,7 @@ spec:
           values: ["true"] 
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
@@ -4751,7 +4753,7 @@ spec:
           values: ["true"]
         - input: "$(tasks.check-cp4i-version.results.output)"
           operator: in
-          values: ["16.1.0", "16.1.1", "CD"]
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
         - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
           operator: in
           values: ["true"]
