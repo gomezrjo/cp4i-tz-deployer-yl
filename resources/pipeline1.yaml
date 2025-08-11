@@ -11,13 +11,13 @@ spec:
       params:
         - name: SCRIPT
           value: >-
-            cd workspace
+            cd workspace/cp4i-ws/cp4i-deployer-helper
 
             oc delete configmap/pipeline-cp4i-demo-output -n default --ignore-not-found=true 
 
-            oc delete configmap/pipeline-ea-demo-output -n default --ignore-not-found=true 
+            oc delete configmap/pipeline-qmgr-nha-output -n default --ignore-not-found=true 
 
-            oc delete configmap/pipeline-lsr-demo-output -n default --ignore-not-found=true 
+            oc delete configmap/pipeline-ea-demo-output -n default --ignore-not-found=true 
 
             oc delete configmap/pipeline-mailpit-demo-output -n default --ignore-not-found=true 
 
@@ -76,13 +76,6 @@ spec:
                         EP_ADMIN_PASSWORD='n/a - EP was not installed per user request.'
                     fi
 
-                    if [[ "$(params.DEPLOY_EA_POSTGRESQL)" == "true" ]] &&
-                       [[ "$(params.DEPLOY_EA_POSTGRESQL_OPERATOR)" == "true" ]]; then
-                        JDBC_URI=$(oc get secret pgsqldemo-pguser-demouser -n pgsql -o jsonpath='{.data.jdbc\-uri}' | base64 -d)
-                    else
-                        JDBC_URI='n/a - PGSQL was not installed per user request.'
-                    fi
-
                     echo "----------------------------"
                     echo "Event EndPoint Management..."
                     echo "   UI URL:" $EEM_URL
@@ -92,8 +85,6 @@ spec:
                     echo "   UI URL:" $EP_URL
                     echo "   Admin user:" $EP_ADMIN_USER
                     echo "   Admin password:" $EP_ADMIN_PASSWORD
-                    echo "PostgreSQL Database..."
-                    echo "   JDBC URI:" $JDBC_URI
                     echo "----------------------------"
                     oc create configmap pipeline-ea-demo-output -n default \
                       --from-literal=msg="Pipeline CP4I Demo run completed" \
@@ -102,33 +93,54 @@ spec:
                       --from-literal=eem-admin-password="$EEM_ADMIN_PASSWORD" \
                       --from-literal=ep-url="$EP_URL" \
                       --from-literal=ep-admin-username="$EP_ADMIN_USER" \
-                      --from-literal=ep-admin-password="$EP_ADMIN_PASSWORD" \
-                      --from-literal=jdbc-uri="$JDBC_URI"
+                      --from-literal=ep-admin-password="$EP_ADMIN_PASSWORD"
 
-                    if [[ "$(params.DEPLOY_LICENSE_REPORTER)" == "true" ]] &&
-                       [[ "$(params.DEPLOY_LICENSE_SERVICE)" == "true" ]]; then
-                        LSR_HOST=$(oc get route ibm-lsr-console -n ibm-licensing -o jsonpath={.spec.host})
-                        LSR_PATH=$(oc get route ibm-lsr-console -n ibm-licensing -o jsonpath={.spec.path})
-                        LSR_URL="https://"$LSR_HOST$LSR_PATH
-                        LSR_USER_NAME=$(oc get secret ibm-license-service-reporter-credentials -o jsonpath={.data.username} -n ibm-licensing | base64 -d)
-                        LSR_USER_PWD=$(oc get secret ibm-license-service-reporter-credentials -o jsonpath={.data.password} -n ibm-licensing | base64 -d)
+                    if [[ "$(params.DEPLOY_QUEUE_MANAGER)" == "true" ]] &&
+                       [[ "$(params.DEPLOY_MQ_OPERATOR)" == "true" ]]; then
+                        QMGR_NAME='qmgr-native-ha'
+                        QMGR_INT_NAME='QMGRNATIVEHA'
+                        QMGR_CHANNEL="MTLS.SVRCONN"
+                        QMGR_CERT_LABEL="qmgr-native-ha-app"
+                        QMGR_HOST=$(oc get route ${QMGR_NAME}-ibm-mq-qm -n $(params.MQ_NAMESPACE) -o jsonpath="{.spec.host}")
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ccdt.json ;) | \
+                QMGR_CHANNEL=${QMGR_CHANNEL} \
+                QMGR_HOST=${QMGR_HOST} \
+                QMGR_INT_NAME=${QMGR_INT_NAME} \
+                QMGR_CERT_LABEL=${QMGR_CERT_LABEL} \
+                sh > mqnhaccdt.json
+                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=ca.crt
+                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.crt
+                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.key
+                        openssl pkcs12 -export -in tls.crt -inkey tls.key -certfile ca.crt -out qmgr-server-nha-tls.p12 -name qmgr-native-ha-app -passout pass:password
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-mqclient.ini ;) | \
+                QMGR_CCDT_NAME='mqnhaccdt' \
+                QMGR_CERT_NAME='qmgr-server-nha-tls' \
+                sh > mqclient-nha.ini
+                        rm -f ca.crt
+                        rm -f tls.crt
+                        rm -f tls.key
                         echo "----------------------------"
-                        echo "License Service Reporter Dashboard..."
-                        echo "   Dashboard URL: " $LSR_URL
-                        echo "   Admin user: " $LSR_USER_NAME
-                        echo "   Admin initial password: " $LSR_USER_PWD
-                        echo "----------------------------"       
-                        oc create configmap pipeline-lsr-demo-output -n default \
-                          --from-literal=msg="Pipeline CP4I Demo run completed" \
-                          --from-literal=lsr-url="$LSR_URL" \
-                          --from-literal=lsr-admin-username="$LSR_USER_NAME" \
-                          --from-literal=lsr-admin-password="$LSR_USER_PWD"
+                        echo "Info to demo MQ NativeHA..."
+                        echo "   QMgr Name: QMGRNATIVEHA"
+                        echo "   Queue Name: EXAMPLE.QUEUE"
+                        echo "   Files included in ConfigMap:"
+                        echo "      CCDT"
+                        echo "      mqclient.ini"
+                        echo "      P12 certificate"
+                        echo "----------------------------"
+                        oc create configmap pipeline-qmgr-nha-output -n default \
+                          --from-literal=msg="Pipeline CP4I Config run completed" \
+                          --from-literal=qmgr-name=QMGRNATIVEHA \
+                          --from-literal=queue-name=EXAMPLE.QUEUE \
+                          --from-file=mqnhaccdt.json \
+                          --from-file=mqclient-nha.ini \
+                          --from-file=qmgr-server-nha-tls.p12
                     else
                         echo "----------------------------"
-                        echo "License Service Reporter was not installed per user request."
+                        echo "MQ NativeHA assets were not installed per user request."
                         echo "----------------------------"
-                        oc create configmap pipeline-lsr-demo-output -n default \
-                          --from-literal=msg="Pipeline CP4I Demo run completed, but License Service Reporter was not installed per user request."
+                        oc create configmap pipeline-qmgr-nha-output -n default \
+                          --from-literal=msg="Pipeline CP4I Config run completed, but MQ CCDT and MQClient.ini files were not configured because Queue Manager instance with NativeHA configuration was not installed per user request."
                     fi
 
                     MAILPIT_URL="http://"$(oc get route mailpit-ui -n mailpit -o jsonpath='{.status.ingress[0].host}')
@@ -164,6 +176,8 @@ spec:
       taskRef:
         kind: Task
         name: jgr-task-0.2
+      workspaces:
+        - name: cp4i-ws
   params:
     - name: CP4I_NAMESPACE
       default: tools
@@ -172,6 +186,10 @@ spec:
     - name: ACE_NAMESPACE
       default: tools
       description: Namespace to deploy App Connect assets
+      type: string
+    - name: MQ_NAMESPACE
+      default: cp4i-mq
+      description: Namespace to deploy Queue Manager
       type: string
     - name: ES_NAMESPACE
       default: tools
@@ -204,14 +222,6 @@ spec:
     - name: EA_OIDC
       default: 'true'
       description: Enable OIDC sec for EA otherwise Local
-      type: string
-    - name: DEPLOY_LICENSE_SERVICE
-      default: 'false'
-      description: Deploy License Service resources
-      type: string
-    - name: DEPLOY_LICENSE_REPORTER
-      default: 'false'
-      description: Deploy License Service resources
       type: string
     - name: DEPLOY_ASSET_REPOSITORY_OPERATOR
       default: 'true'
@@ -252,10 +262,6 @@ spec:
     - name: DEPLOY_EVENT_PROCESSING_OPERATOR
       default: 'true'
       description: Deploy Event Processing operator
-      type: string
-    - name: DEPLOY_EA_POSTGRESQL_OPERATOR
-      default: 'true'
-      description: Deploy PostgreSQL operator
       type: string
     - name: IBM_ENTITLEMENT_KEY_ID
       default: a65ac528-bbca-1425-8d07-fde9e2f1ff70
@@ -308,9 +314,9 @@ spec:
       default: 'true'
       description: Deploy event processing
       type: string
-    - name: DEPLOY_EA_POSTGRESQL
-      default: 'true'
-      description: Deploy postgresql
+    - name: TZ_ENV_TYPE
+      default: 'full'
+      description: Environment type used to deploy CP4I stack (full, apic, ea, ace_mq)
       type: string
     - name: IBM_SECRETS_MANAGER_ENDPOINT
       default: >-
@@ -326,7 +332,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250810-001"
+            REPO_SIGNATURE="JGR-20250811-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -416,6 +422,39 @@ spec:
       timeout: 3h0m0s 
       workspaces:
         - name: cp4i-ws
+    - name: set-default-storage-class
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            echo "Setting default storage class"
+            
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+                        
+            if [[ $(oc get sc | grep default | wc -l) -gt 0 ]]; then
+                oc get sc | grep default | awk '{system("oc patch storageclass " $1 " --patch-file resources/99-sc-remove-default.yaml")}'          
+            fi
+            
+            oc patch storageclass $(params.DEFAULT_SC) --patch-file resources/99-sc-set-default.yaml
+        - name: VERSION
+          value: latest
+      retries: 3
+      runAfter:
+        - setup-workspace
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      timeout: 3h0m0s
+      when:
+        - input: "$(params.CP4I_VERSION)"
+          operator: in
+          values: ["16.1.0", "SC2", "16.1.1", "CD"]
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
     - name: mail-server-deployment
       params:
         - name: SCRIPT
@@ -423,6 +462,8 @@ spec:
             set -o xtrace
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            oc delete secret/jgr-mailpit -n default --ignore-not-found=true
 
             echo "Creating namespace for mail server"
             
@@ -448,7 +489,7 @@ spec:
 
             echo "Waiting for mail server to be ready..."
 
-            while ! oc wait --for=jsonpath='{.status.conditions[1].status}'=True
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True
             deployment/mailpit -n mailpit 2>/dev/null; do sleep 30; done
 
             echo "Creating mail server service" 
@@ -457,7 +498,7 @@ spec:
 
             echo "Creating mail server route"
 
-            oc apply -f resources/30c-mailpit-route.yaml
+            oc apply -f resources/30c-mailpit-route.yaml 
 
             oc create secret generic jgr-mailpit -n default --from-literal=username="mailpit-admin" --from-literal=password="${MAILPIT_ADMIN_PWD}" 
 
@@ -465,43 +506,10 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - setup-workspace
+        - set-default-storage-class
       taskRef:
         kind: Task
         name: jgr-task-0.2
-      when:
-        - input: "$(params.CP4I_VERSION)"
-          operator: in
-          values: ["16.1.0", "SC2", "16.1.1", "CD"]
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
-    - name: set-default-storage-class
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            echo "Setting default storage class"
-            
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-                        
-            if [[ $(oc get sc | grep default | wc -l) -gt 0 ]]; then
-                oc get sc | grep default | awk '{system("oc patch storageclass " $1 " --patch-file resources/99-sc-remove-default.yaml")}'          
-            fi
-            
-            oc patch storageclass $(params.DEFAULT_SC) --patch-file resources/99-sc-set-default.yaml
-        - name: VERSION
-          value: latest
-      retries: 3
-      runAfter:
-        - mail-server-deployment
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      timeout: 3h0m0s
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
@@ -547,7 +555,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - set-default-storage-class
+        - mail-server-deployment
       taskRef:
         kind: Task
         name: jgr-task-0.2
@@ -566,7 +574,7 @@ spec:
           value: |-
             set -o xtrace
 
-            CP4I_NAMESPACES=($(params.CP4I_NAMESPACE) $(params.ACE_NAMESPACE) $(params.ES_NAMESPACE))
+            CP4I_NAMESPACES=($(params.CP4I_NAMESPACE) $(params.ACE_NAMESPACE) $(params.ES_NAMESPACE) $(params.MQ_NAMESPACE))
 
             for NS in "${CP4I_NAMESPACES[@]}"
 
@@ -621,7 +629,7 @@ spec:
           value: >-
             set -o xtrace
 
-            CP4I_NAMESPACES=($(params.CP4I_NAMESPACE) $(params.ACE_NAMESPACE) $(params.ES_NAMESPACE))
+            CP4I_NAMESPACES=($(params.CP4I_NAMESPACE) $(params.ACE_NAMESPACE) $(params.ES_NAMESPACE) $(params.MQ_NAMESPACE))
 
             for NS in "${CP4I_NAMESPACES[@]}"
 
@@ -1905,26 +1913,91 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
-    - name: qmgr-instance-deployment
+    - name: qmgr-native-ha-instance-deployment
       params:
         - name: SCRIPT
           value: >-
             set -o xtrace
 
+            if [[ -z $(oc get deployment ibm-mq-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]]; then 
+                echo "Skipping Queue Managers with CRR configuration deployment, Operator was not installed."
+                exit 0
+            fi
+
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
-            echo "Preconfiguring Queue Manager..."
+            echo "Preconfiguring Queue Managers for Native HA..."
 
-            echo "Preparing queue manager instance manifest"
+            QMGR_NAME='qmgr-native-ha'
+
+            QMGR_CHANNEL="MTLS.SVRCONN"
+
+            oc apply -f resources/03j-qmgr-mqsc-ini-config-nha.yaml -n $(params.MQ_NAMESPACE)
+
+            echo "Creating QMgr CA..."
+    
+            oc apply -f resources/03h-qmgr-ss-issuer.yaml -n $(params.MQ_NAMESPACE)
+
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ca-cert.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                sh > qmgr-ca-cert.yaml
+
+            oc apply -f qmgr-ca-cert.yaml -n $(params.MQ_NAMESPACE)
+    
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-ca-issuer.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                sh > qmgr-ca-issuer.yaml
+    
+            oc apply -f qmgr-ca-issuer.yaml -n $(params.MQ_NAMESPACE)
+    
+            echo "Creating Certificate Template..."
+    
+            OCP_CLUSTER_DOMAIN=$(oc get IngressController default -n openshift-ingress-operator -o jsonpath='{.status.domain}')
+        
+            ( echo "cat <<EOF" ; cat templates/template-mq-nha-certificate.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                QMGR_NAMESPACE=$(params.MQ_NAMESPACE) \
+                OCP_CLUSTER_DOMAIN=${OCP_CLUSTER_DOMAIN} \
+                sh > mq-certificate.yaml
+        
+            echo "Creating Certificate..."
+        
+            oc apply -f mq-certificate.yaml -n $(params.MQ_NAMESPACE)
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].type}'=Ready
+            certificate/${QMGR_NAME}-selfsigned-cert -n
+            $(params.MQ_NAMESPACE) 2>/dev/null; do sleep 10; done
+
+            echo "Preparing Route Template..."
+
+            MQ_CHANNEL_SNI=$(echo $QMGR_CHANNEL | tr '[:upper:]' '[:lower:]')
+
+            HOST_NAME="${MQ_CHANNEL_SNI//./2e-}${DC}.chl.mq.ibm.com"
+
+            ( echo "cat <<EOF" ; cat templates/template-mq-tls-route.yaml ;) | \
+                QMGR_NAME=${QMGR_NAME} \
+                QMGR_NAMESPACE=$(params.MQ_NAMESPACE) \
+                HOST_NAME=${HOST_NAME} \
+                sh > mq-tls-route.yaml
+
+            echo "Creating Route..."
+
+            oc create -f mq-tls-route.yaml
+    
+            echo "Queue Manager preconfiguration for Native HA completed."
+
+            echo "Deploying Queue Manager with Native HA configuration..."
+
+            echo "Setting MQ Version"
 
             case "$(params.CP4I_VERSION)" in
-
+    
                 "16.1.0" | "SC2")
-            
+              
                     MQ_VERSION='9.4.0.12-r1'
-            
+        
                     ;;
-            
+
                 "16.1.1")
             
                     MQ_VERSION='9.4.2.1-r2'
@@ -1937,23 +2010,23 @@ spec:
                     
                     ;;
             
-            esac
+            esac            
+            
+            echo "Preparing queue manager instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/33-qmgr-single-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/12-qmgr-native-ha-instance.yaml ;) | \
                 MQ_VERSION=${MQ_VERSION} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
-                sh > qmgr-single-instance.yaml
+                sh > 12-qmgr-native-ha-instance.yaml
 
             echo "Deploying queue manager instance"
 
-            oc apply -f qmgr-single-instance.yaml -n
-            $(params.CP4I_NAMESPACE)
+            oc apply -f 12-qmgr-native-ha-instance.yaml -n $(params.MQ_NAMESPACE)
 
-            echo "Waiting for queue manager instance to be ready..."
 
             while ! oc wait --for=jsonpath='{.status.phase}'=Running
-            queuemanager/mq-demo -n
-            $(params.CP4I_NAMESPACE)  2>/dev/null; do sleep 30; done
+            queuemanager/${QMGR_NAME} -n
+            $(params.MQ_NAMESPACE)  2>/dev/null; do sleep 30; done
 
             echo "Queue manager instance is ready"
         - name: VERSION
@@ -2022,7 +2095,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - qmgr-instance-deployment
+        - qmgr-native-ha-instance-deployment
       taskRef:
         kind: Task
         name: jgr-task-0.2
@@ -2712,109 +2785,6 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
-    - name: postgresql-operator-installation
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-
-            echo "Creating namespace"
-
-            oc create namespace pgsql
-
-            echo "Enabling Operator Group in namespace"
-
-            oc apply -f resources/12d-pgsql-operatorgroup.yaml
-
-            echo "Installing postgresql operator"
-            
-            oc apply -f resources/12a-pgsql-subscription.yaml
-
-            echo "Getting operator version..."
-            
-            SUB_NAME=''
-            
-            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment pgo -n pgsql --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
-
-            echo "Operator: " $SUB_NAME
-
-            echo "Waiting for postgresql operator to be ready..."
-
-            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
-            csv/$SUB_NAME -n pgsql 2>/dev/null; do sleep 30; done
-
-            echo "Postgresql operator is ready"
-        - name: VERSION
-          value: latest
-      runAfter:
-        - event-processing-instance-sec-config
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(params.CP4I_VERSION)"
-          operator: in
-          values: ["16.1.0", "SC2", "16.1.1", "CD"]
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_EA_POSTGRESQL_OPERATOR)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
-    - name: postgresql-database-deployment
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-
-            echo "Creating config map with postgresql database configuration"
-
-            oc apply -f resources/12b-pgsql-config.yaml -n pgsql
-
-            echo "Config map is created"
-
-            echo "Deploying postgresql database instance"
-
-            oc apply -f resources/12c-pgsql-db.yaml -n pgsql
-
-            echo "Waiting for postgresql database instance to be ready..."
-
-            while ! oc wait --for=jsonpath='{.status.conditions[1].status}'=True
-            -l "postgres-operator.crunchydata.com/role=master" pods -n
-            pgsql 2>/dev/null; do sleep 30; done
-
-            echo "Postgresql database instance is ready"
-        - name: VERSION
-          value: latest
-      runAfter:
-        - postgresql-operator-installation
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(params.CP4I_VERSION)"
-          operator: in
-          values: ["16.1.0", "SC2", "16.1.1", "CD"]
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_EA_POSTGRESQL_OPERATOR)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_EA_POSTGRESQL)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_PLATFORM_UI)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
     - name: eem-integration-apic-step2
       params:
         - name: SCRIPT
@@ -2898,7 +2868,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - postgresql-database-deployment
+        - event-processing-instance-sec-config
       taskRef:
         kind: Task
         name: jgr-task-0.2
@@ -2919,179 +2889,6 @@ spec:
           operator: in
           values: ["true"]
         - input: "$(params.DEPLOY_PLATFORM_UI)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
-    - name: license-service-installation
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-
-            echo "Enabling license service catalog source"
-
-            oc apply -f catalog-sources/$(params.CP4I_VERSION)/02a-license-service-catalog-source.yaml
-
-            echo "Waiting for license service catalog source to be ready..."
-
-            while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/ibm-licensing-catalog -n 
-            openshift-marketplace 2>/dev/null; do sleep 30; done
-
-            echo "License service catalog source is ready"
-
-            echo "Creating license service namespace"
-
-            if [[ $(oc get projects | grep ibm-licensing | wc -l) -eq 0 ]]; then
-                oc create namespace ibm-licensing
-            fi 
-            
-            echo "Enable operator group in namespace"
-
-            oc apply -f resources/00-license-service-operatorgroup.yaml
-
-            echo "Installing license service operator"
-            
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/00-license-service-subscription.yaml
-
-            echo "Getting operator version..."
-            
-            SUB_NAME=''
-            
-            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment/ibm-licensing-operator -n ibm-licensing --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
-
-            echo "Operator: " $SUB_NAME
-
-            echo "Waiting for license service operator to be ready..."
-            
-            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
-            csv/$SUB_NAME -n ibm-licensing 2>/dev/null; do sleep 30; done
-
-            echo "License service operator is ready"
-
-            echo "Waiting for license service instance to be ready..."
-            
-            while ! oc wait --for=jsonpath='{.status.licensingPods[0].conditions[1].status}'=True 
-            IBMLicensing/instance -n ibm-licensing 2>/dev/null; do sleep 30; done
-
-            echo "License service instance is ready"
-        - name: VERSION
-          value: latest
-      runAfter:
-        - eem-integration-apic-step2
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(params.CP4I_VERSION)"
-          operator: in
-          values: ["16.1.0", "SC2", "16.1.1", "CD"]
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_LICENSE_SERVICE)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
-    - name: license-reporter-installation
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-
-            echo "Enabling license reporter catalog source"
-
-            oc apply -f catalog-sources/$(params.CP4I_VERSION)/02b-license-reporter-catalog-source.yaml
-
-            echo "Waiting for license reporter catalog source to be ready..."
-
-            while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/ibm-license-service-reporter-operator-catalog -n 
-            openshift-marketplace 2>/dev/null; do sleep 30; done
-
-            echo "License reporter catalog source is ready"
-
-            echo "Installing license reporter operator"
-            
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/00-license-reporter-subscription.yaml
-
-            echo "Getting operator version..."
-            
-            SUB_NAME=''
-            
-            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment/ibm-license-service-reporter-operator -n ibm-licensing --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
-
-            echo "Operator: " $SUB_NAME
-
-            echo "Waiting for license reporter operator to be ready..."
-            
-            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
-            csv/$SUB_NAME -n ibm-licensing 2>/dev/null; do sleep 30; done
-
-            echo "License reporter operator is ready"
-
-            echo "Preparing license reporter instance manifest..."
-
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/00-license-reporter-instance.yaml ;) | \
-                OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
-                sh > license-reporter-instance.yaml
-
-            echo "Deploying license reporter instance..."
-
-            oc apply -f license-reporter-instance.yaml
-
-            echo "Waiting for license reporter instance to be ready..."
-            
-            while ! oc wait --for=jsonpath='{.status.LicenseServiceReporterPods[0].conditions[1].status}'=True 
-            IBMLicenseServiceReporter/ibm-lsr-instance -n ibm-licensing 2>/dev/null; do sleep 30; done
-
-            echo "License reporter instance is ready"
-
-            echo "Configuting data source for license reporter..."
-
-            REPORTER_URL="https://"$(oc get route ibm-license-service-reporter -n ibm-licensing -o jsonpath={.spec.host})
-
-            echo $REPORTER_URL
-
-            oc get ibmlicensing instance -n ibm-licensing -o json > instance.json
-
-            jq --arg REPORTER_URL $REPORTER_URL \
-                '.spec.sender += {"reporterSecretToken":"ibm-license-service-reporter-token"} |
-                  .spec.sender += {"reporterURL":($REPORTER_URL)}' \
-                instance.json > instance-updated.json       
-
-            oc apply -f instance-updated.json
-
-            echo "Waiting for license service instance to be ready..."
-            
-            while ! oc wait --for=jsonpath='{.status.licensingPods[0].conditions[1].status}'=True 
-            IBMLicensing/instance -n ibm-licensing 2>/dev/null; do sleep 30; done
-
-            echo "Data source for license service is ready"     
-        - name: VERSION
-          value: latest
-      runAfter:
-        - license-service-installation
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(params.CP4I_VERSION)"
-          operator: in
-          values: ["16.1.0", "SC2", "16.1.1", "CD"]
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_LICENSE_SERVICE)"
-          operator: in
-          values: ["true"]
-        - input: "$(params.DEPLOY_LICENSE_REPORTER)"
           operator: in
           values: ["true"]
       workspaces:
