@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250813-001"
+            REPO_SIGNATURE="JGR-20250826-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -602,7 +602,7 @@ spec:
             else
                 case "${CP4I_VER_NUM}" in
                     "16.1.0")
-                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-toolkit-linux-10.0.8.3.tgz
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.3.tgz
                         chmod +x apic
                         CP4I_VER="${CP4I_VER_NUM}"
                         CP4I_VER="SC2"
