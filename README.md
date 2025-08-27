@@ -1,6 +1,6 @@
 # cp4i-tz-deployer-yl
 
-This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS and v16.1.2 for CD) based on the CP4I end-to-end demo assets.
+This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS/SC2 and v16.1.2 for CD) based on the CP4I end-to-end demo assets.
 
 This repo does not include the extra elements like Instana and Logging, but the core CP4I capabilities and License Service are included now.
 
@@ -62,7 +62,7 @@ tkn pipeline start cp4i-demo \
     --use-param-defaults \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
-    --param CP4I_VERSION="16.1.0"
+    --param CP4I_VERSION="SC2"
 ```
 </details>
 &nbsp; 
@@ -96,7 +96,7 @@ tkn pipeline start cp4i-demo \
     --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
     --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
     --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs" \
-    --param CP4I_VERSION="16.1.0"
+    --param CP4I_VERSION="SC2"
 ```
 
 </details>
