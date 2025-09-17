@@ -68,7 +68,7 @@ spec:
                     fi
                     echo "----------------------------"
                     echo "PostgreSQL DataBase..."
-                    echo "   JDBC URI:" JDBC_URI
+                    echo "   JDBC URI:" $JDBC_URI
                     echo "----------------------------"
                     oc create configmap pipeline-pgsql-demo-output -n default \
                       --from-literal=msg="Pipeline CP4I Demo run completed" \
