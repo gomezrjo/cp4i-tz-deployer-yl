@@ -332,7 +332,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250826-001"
+            REPO_SIGNATURE="JGR-20250917-002"
 
             echo "Setting up workspace for pipeline"
 
@@ -1994,7 +1994,7 @@ spec:
     
                 "16.1.0" | "SC2")
               
-                    MQ_VERSION='9.4.0.12-r1'
+                    MQ_VERSION='9.4.0.15-r1'
         
                     ;;
 
@@ -2006,7 +2006,7 @@ spec:
 
                 "CD")
                     
-                    MQ_VERSION='9.4.3.0-r2'
+                    MQ_VERSION='9.4.3.1-r1'
                     
                     ;;
             
@@ -2500,7 +2500,7 @@ spec:
 
             echo "Deploying flink instance"
 
-            cp instances/$(params.CP4I_VERSION)/21-ea-flink-instance.yaml .
+            cp instances/$(params.CP4I_VERSION)/21-ea-flink-cp4i-instance.yaml ./21-ea-flink-instance.yaml
 
             if [[ "$(params.DEPLOY_EVENT_STREAMS)" != "true" ]] ||
                [[ "$(params.DEPLOY_EVENT_STREAMS_OPERATOR)" != "true" ]]; then
@@ -2623,9 +2623,11 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            EP_INST_NAME='ep-demo'
+
             echo "Preparing event processing instance manifest"
 
-            cp instances/$(params.CP4I_VERSION)/22-event-processing-instance.yaml .
+            cp instances/$(params.CP4I_VERSION)/22-event-processing-cp4i-instance.yaml ./22-event-processing-instance.yaml
             
             if [[ "$(params.EA_OIDC)" == "true" ]]; then
                 EP_AUTH_TYPE='OIDC'
@@ -2645,11 +2647,13 @@ spec:
                 OCP_FQDN=$(oc get dnses.config.openshift.io cluster -o jsonpath='{.spec.baseDomain}')
                 CP4I_KC_CLIENT_ID=$(oc get integrationkeycloakclient -n ibm-common-services | grep integration | awk '{print $1}')
                 ( echo "cat <<EOF" ; cat templates/template-ep-keycloak-client.yaml ;) | \
+                    EP_NAME=${EP_INST_NAME} \
+                    EP_NS=$(params.CP4I_NAMESPACE) \
                     OCP_FQDN=${OCP_FQDN} \
                     CP4I_KC_CLIENT_ID=${CP4I_KC_CLIENT_ID} \
                     sh > ep-keycloak-client.yaml
                 echo "Creating Keycloak Client..."
-                oc apply -f ep-keycloak-client.yaml
+                oc apply -f ep-keycloak-client.yaml -n $(params.CP4I_NAMESPACE)
                 echo "EP Keycloak client created."
             else
                 EP_AUTH_TYPE='LOCAL'               
