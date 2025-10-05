@@ -332,7 +332,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250917-002"
+            REPO_SIGNATURE="JGR-20250929-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -392,7 +392,7 @@ spec:
 
                 "16.1.0" | "SC2")
             
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.3.tgz
+                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.4.tgz
             
                     ;;
             
@@ -834,11 +834,29 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME="cp4i-navigator"
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-integration-platform-navigator-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "PlatformNavigator")] | .[] | select(.metadata.name == "integration-quickstart") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "PlatformNavigator")] | .[] | select(.metadata.name == "integration-quickstart") | .spec.license.license')
+
+            echo "Preparing platform navigator instance manifest"
+
+            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/01-platform-navigator-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
+                INST_VER=${INST_VER} \
+                sh > platform-navigator-instance.yaml
+
             echo "Deploying platform navigator instance"
 
-            oc apply -f instances/$(params.CP4I_VERSION)/01-platform-navigator-instance.yaml -n
+            oc apply -f platform-navigator-instance.yaml -n
             $(params.CP4I_NAMESPACE)
-
+            
             echo "Waiting for platform navigator instance to be ready..."
 
             while ! oc wait --for=condition=Ready
@@ -930,9 +948,22 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME="asset-repo-ai"
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-integration-asset-repository-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "AssetRepository")] | .[] | select(.metadata.name == "fixed-single") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "AssetRepository")] | .[] | select(.metadata.name == "fixed-single") | .spec.license.license')
+
             echo "Preparing asset repo instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/02-asset-repo-ai-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
+                INST_VER=${INST_VER} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > asset-repo-ai-instance.yaml
 
@@ -1098,9 +1129,22 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME="apim-demo"
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-apiconnect -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.license.license')
+
             echo "Preparing apic instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/04-apic-emm-hpa-test-billing-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
+                INST_VER=${INST_VER} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > apic-emm-hpa-test-billing-instance.yaml
 
@@ -1392,9 +1436,19 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME='es-demo'
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment eventstreams-cluster-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventStreams")] | .[] | select(.metadata.name == "minimal-prod") | .spec.license.license')
+
             echo "Preparing event streams instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/05-event-streams-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > event-streams-instance.yaml
 
@@ -1500,6 +1554,14 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            EEM_INST_NAME='eem-demo-mgr'
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-eem-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventEndpointManagement")] | .[] | select(.metadata.name == "quick-start-manager") | .spec.license.license')
+
             echo "Preparing eem manager instance manifest"
 
             cp instances/$(params.CP4I_VERSION)/19-eem-manager-local-instance.yaml .
@@ -1514,6 +1576,8 @@ spec:
             fi
 
             (echo "cat <<EOF" ; cat 19-eem-manager-local-instance.yaml ;) | \
+              INST_NAME=${EEM_INST_NAME} \
+              INST_LIC=${INST_LIC} \
               EEM_AUTH_TYPE=${EEM_AUTH_TYPE} \
               OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
               sh > eem-manager-local-instance.yaml
@@ -1531,11 +1595,21 @@ spec:
 
             echo "EEM manager instance is ready"
 
+            INST_NAME='eem-demo-gw'
+
             EEM_GATEWAY_ROUTE=$(oc get route "eem-demo-mgr-ibm-eem-gateway" -n $(params.CP4I_NAMESPACE) -o jsonpath="{.spec.host}")
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-eem-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventGateway")] | .[] | select(.metadata.name == "quick-start-gw") | .spec.license.license')
 
             echo "Deploying eem gateway instance"
 
             ( echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/20-eem-gateway-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
                 EEM_GATEWAY_ROUTE=${EEM_GATEWAY_ROUTE} \
                 sh > eem-gateway-instance.yaml
 
@@ -2011,10 +2085,20 @@ spec:
                     ;;
             
             esac            
-            
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             echo "Preparing queue manager instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/12-qmgr-native-ha-instance.yaml ;) | \
+                INST_NAME=${QMGR_NAME} \
+                INST_LIC=${INST_LIC} \
                 MQ_VERSION=${MQ_VERSION} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > 12-qmgr-native-ha-instance.yaml
@@ -2119,9 +2203,22 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME='ace-dashboard'
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-appconnect-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "Dashboard")] | .[] | select(.metadata.name == "db-01-quickstart") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "Dashboard")] | .[] | select(.metadata.name == "db-01-quickstart") | .spec.license.license')
+
             echo "Preparing ace dashboard instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/06-ace-dashboard-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_VER=${INST_VER} \
+                INST_LIC=${INST_LIC} \
                 OCP_FILE_STORAGE=$(params.OCP_FILE_STORAGE) \
                 sh > ace-dashboard-instance.yaml
 
@@ -2171,8 +2268,18 @@ spec:
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
             if [[ "$(params.DEPLOY_ACE_SWITCH_SERVER)" == "true" ]]; then
+                INST_NAME='ace-switch-server'
+                echo "Getting info from CSV..."
+                SUB_NAME=$(oc get deployment ibm-appconnect-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+                INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "SwitchServer")] | .[] | select(.metadata.name == "default") | .spec.version')
+                INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "SwitchServer")] | .[] | select(.metadata.name == "default") | .spec.license.license')
+                ( echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/07-ace-switch-server-instance.yaml ;) | \
+                    INST_NAME=${INST_NAME} \
+                    INST_VER=${INST_VER} \
+                    INST_LIC=${INST_LIC} \
+                    sh > 07-ace-switch-server-instance.yaml
                 echo "Deploying ace switch server instance"
-                oc apply -f instances/$(params.CP4I_VERSION)/07-ace-switch-server-instance.yaml -n $(params.ACE_NAMESPACE)
+                oc apply -f 07-ace-switch-server-instance.yaml -n $(params.ACE_NAMESPACE)
                 echo "Waiting for ace switch server instance to be ready..."
                 while ! oc wait --for=jsonpath='{.status.phase}'=Ready \
                   switchserver/ace-switch-server -n \
@@ -2182,9 +2289,22 @@ spec:
                 echo "Skipping ACE switch server instance deployment"
             fi
 
+            INST_NAME='ace-designer-ai'
+
+            echo "Getting info from CSV..."
+            
+            SUB_NAME=$(oc get deployment ibm-appconnect-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "DesignerAuthoring")] | .[] | select(.metadata.name == "des-01-quickstart-ma") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "DesignerAuthoring")] | .[] | select(.metadata.name == "des-01-quickstart-ma") | .spec.license.license')
+
             echo "Preparing ace designer instance manifest"
 
             (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/08-ace-designer-local-ai-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_VER=${INST_VER} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 OCP_FILE_STORAGE=$(params.OCP_FILE_STORAGE) \
                 sh > ace-designer-local-ai-instance.yaml

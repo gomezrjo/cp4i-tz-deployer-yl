@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250917-002"
+            REPO_SIGNATURE="JGR-20250929-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -636,6 +636,10 @@ spec:
         kind: Task
         name: jgr-task-0.2
       timeout: 3h0m0s 
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
       workspaces:
         - name: cp4i-ws
     - name: license-service-installation
@@ -1097,8 +1101,10 @@ spec:
             
             esac
 
-            
+            SUB_NAME=$(oc get deployment eventstreams-cluster-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
 
+            ES_VERSION=$(oc get csv/$SUB_NAME -o json | jq -r '.spec.version')
+          
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-connect.yaml ;) | \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
                 ES_VERSION=${ES_VERSION} \
@@ -1753,6 +1759,8 @@ spec:
 
             echo "Deploying extra API Gateway..."
 
+            INST_NAME='remote-api-gw'
+
             APIC_INST_NAME='apim-demo'
 
             echo "Preparing APIC ingress CA..."
@@ -1780,11 +1788,23 @@ spec:
                 echo "Secret already exists."
             fi
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-apiconnect -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | .[] | select(.kind == "GatewayCluster") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | .[] | select(.kind == "GatewayCluster") | .spec.license.license')
+
             echo "Preparing YAML file..."
 
             STACK_HOST=$(oc get route "${APIC_INST_NAME}-gw-gateway" -n $(params.CP4I_NAMESPACE) -o jsonpath="{.spec.host}" | cut -d'.' -f2-)
 
             ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/23-apic-api-gwy-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_VER=${INST_VER} \
+                INST_LIC=${INST_LIC} \
+                DINST_NAME=${APIC_INST_NAME} \
                 STACK_HOST=${STACK_HOST} \
                 sh > temp-apic-api-gwy-instance.yaml
 
@@ -1803,6 +1823,8 @@ spec:
             echo "Preparing Route file..."
 
             ( echo "cat <<EOF" ; cat templates/template-dp-route.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                NS_NAME=$(params.DP_NAMESPACE) \
                 STACK_HOST=${STACK_HOST} \
                 sh > dp-route.yaml
 
@@ -1845,6 +1867,8 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME="dp-demo"
+
             echo "Deploying DP Gateway instance..."
 
             echo "Creating DP Gateway configuration..."
@@ -1859,9 +1883,25 @@ spec:
                 echo "Secret already exists."
             fi
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment datapower-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "DataPowerService")] | .[] | select(.metadata.name == "quickstart") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "DataPowerService")] | .[] | select(.metadata.name == "quickstart") | .spec.license.license')
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/24-dp-gwy-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_VER=${INST_VER} \
+                INST_LIC=${INST_LIC} \
+                sh > temp-dp-gwy-instance.yaml
+
             echo "Creating DP Gateway instance..."
 
-            oc apply -f instances/$(tasks.check-cp4i-version.results.output)/24-dp-gwy-instance.yaml -n $(params.DP_NAMESPACE)
+            oc apply -f temp-dp-gwy-instance.yaml -n $(params.DP_NAMESPACE)
 
             echo "Waiting for DP gateway instance to be ready..."
 
@@ -1869,15 +1909,24 @@ spec:
             DataPowerService/dp-demo -n
             $(params.DP_NAMESPACE) 2>/dev/null; do sleep 30; done
 
+            echo "Preparing Route File for DataPower Gateway WebUI..."
+
+            ( echo "cat <<EOF" ; cat resources/16b-dp-gw-services.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                NS_NAME=$(params.DP_NAMESPACE) \
+                sh > dp-gw-services.yaml
+
             echo "Create service to expose DP Gateway ports..."
 
-            oc apply -f resources/16b-dp-gw-services.yaml -n $(params.DP_NAMESPACE)
+            oc apply -f dp-gw-services.yaml -n $(params.DP_NAMESPACE)
 
             echo "Preparing Route File for DP WebUI..."
 
             STACK_HOST="apps.$(oc get dnses.config.openshift.io cluster -o jsonpath='{.spec.baseDomain}')"
             
             ( echo "cat <<EOF" ; cat templates/template-dp-gw-webui-route.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                NS_NAME=$(params.DP_NAMESPACE) \
                 STACK_HOST=${STACK_HOST} \
                 sh > dp-webui-route.yaml
 
@@ -1888,6 +1937,8 @@ spec:
             echo "Preparing Route File for DP HTTP User Traffic..."
 
             ( echo "cat <<EOF" ; cat templates/template-dp-gw-http-route.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                NS_NAME=$(params.DP_NAMESPACE) \
                 STACK_HOST=${STACK_HOST} \
                 sh > dp-http-route.yaml
 
@@ -1996,7 +2047,17 @@ spec:
             
             esac
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/09-qmgr-ace-single-instance.yaml ;) | \
+                INST_NAME=${QMGR_NAME} \
+                INST_LIC=${INST_LIC} \
                 MQ_VERSION=${MQ_VERSION} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-ace-single-instance.yaml
@@ -2204,6 +2265,14 @@ spec:
             
             esac
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/13-qmgr-uniform-cluster-instance.yaml ;) | \
                 QMGR_NAME=${QMGR_NAME} \
                 QMGR_NAME_SHORT=${QMGR_NAME_SHORT} \
@@ -2296,6 +2365,8 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME='mq-demo'
+            
             echo "Preconfiguring Queue Manager..."
 
             echo "Preparing queue manager instance manifest"
@@ -2322,7 +2393,17 @@ spec:
             
             esac
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/33-qmgr-single-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
                 MQ_VERSION=${MQ_VERSION} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-single-instance.yaml
@@ -2396,6 +2477,14 @@ spec:
                     ;;
             
             esac
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
 
             echo "Preparing queue manager instance manifest"
             
@@ -2474,6 +2563,14 @@ spec:
             
             esac
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             echo "Preparing queue manager instance manifest"
             
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/11a-qmgr-base-multi-instance-storage.yaml ;) | \
@@ -2551,6 +2648,14 @@ spec:
                     ;;
             
             esac
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
 
             echo "Preparing queue manager instance manifest"
             
@@ -2733,7 +2838,15 @@ spec:
                     ;;
             
             esac            
-            
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-mq-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            MQ_VERSION=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "QueueManager")] | .[] | select(.metadata.name == "quickstart-cp4i") | .spec.license.license')
+
             echo "Preparing queue manager instance manifest"
 
             ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/32a-qmgr-nha-crr-instance.yaml ;) | \
