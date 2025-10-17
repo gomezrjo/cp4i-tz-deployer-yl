@@ -332,7 +332,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250929-001"
+            REPO_SIGNATURE="JGR-20251013-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -836,6 +836,8 @@ spec:
 
             INST_NAME="cp4i-navigator"
 
+            INST_REP="1"
+
             echo "Getting info from CSV..."
 
             SUB_NAME=$(oc get deployment ibm-integration-platform-navigator-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
@@ -846,10 +848,11 @@ spec:
 
             echo "Preparing platform navigator instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/01-platform-navigator-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/common/01-platform-navigator-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
+                INST_REP=${INST_REP} \
                 sh > platform-navigator-instance.yaml
 
             echo "Deploying platform navigator instance"
@@ -960,7 +963,7 @@ spec:
 
             echo "Preparing asset repo instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/02-asset-repo-ai-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/common/02-asset-repo-ai-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
@@ -1131,6 +1134,8 @@ spec:
 
             INST_NAME="apim-demo"
 
+            INST_PROFILE="n1xc7.m48"
+
             echo "Getting info from CSV..."
 
             SUB_NAME=$(oc get deployment ibm-apiconnect -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
@@ -1141,16 +1146,23 @@ spec:
 
             echo "Preparing apic instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/04-apic-emm-hpa-test-billing-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/common/04-apic-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
+                INST_PROFILE=${INST_PROFILE} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
-                sh > apic-emm-hpa-test-billing-instance.yaml
+                sh > apic-instance.yaml
 
+            yq -i '.spec.management.billing.enabled = true |
+                .spec.gateway.podAutoScaling.method = "HPA" |
+                .spec.gateway.podAutoScaling.hpa.minReplicas = 1 |
+                .spec.gateway.podAutoScaling.hpa.maxReplicas = 3 |
+                .spec.gateway.podAutoScaling.hpa.targetCPUUtilizationPercentage = 50' apic-instance.yaml
+            
             echo "Deploying apic instance"
 
-            oc apply -f apic-emm-hpa-test-billing-instance.yaml -n
+            oc apply -f apic-instance.yaml -n
             $(params.CP4I_NAMESPACE)
 
             echo "Waiting for apic instance to be ready..."
@@ -1386,7 +1398,7 @@ spec:
             echo "Waiting for event streams catalog source to be ready..."
 
             while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/ibm-eventstreams-catalog -n 
+            catalogsources/ibm-eventstreams -n 
             openshift-marketplace 2>/dev/null; do sleep 30; done
 
             echo "Event streams catalog source is ready"
@@ -1442,15 +1454,26 @@ spec:
 
             SUB_NAME=$(oc get deployment eventstreams-cluster-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
 
-            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventStreams")] | .[] | select(.metadata.name == "minimal-prod") | .spec.license.license')
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventStreams")] | .[] | select(.metadata.name == "light-insec") | .spec.license.license')
+
+            INST_USE=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventStreams")] | .[] | select(.metadata.name == "light-insec") | .spec.license.use')
 
             echo "Preparing event streams instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/05-event-streams-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/common/05-event-streams-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
+                INST_USE=${INST_USE} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > event-streams-instance.yaml
+
+            yq -i '.metadata.labels."assembly.integration.ibm.com/tools.jgr-demo" = "true" |
+                .metadata.labels."assembly.integration.ibm.com/tools.jgr-demo" style="single" |
+                .spec.adminUI += {"authentication": [{"type": "integrationKeycloak"}]} |
+                .spec.strimziOverrides.kafka.authorization.type = "simple" |
+                .spec.strimziOverrides.kafka += {"listeners": [{"name": "authsslsvc", "port": 9095, "type": "internal", "tls": true, "authentication": {"type": "scram-sha-512"}}]} |
+                .spec.strimziOverrides.kafka.listeners += {"name": "external", "port": 9094, "type": "route", "tls": true, "authentication": {"type": "scram-sha-512"}} |
+                .spec.strimziOverrides.kafka.listeners += {"name": "tls", "port": 9093, "type": "internal", "tls": true, "authentication": {"type": "tls"}}' event-streams-instance.yaml
 
             echo "Deploying event streams instance"
 
@@ -2618,9 +2641,22 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
-            echo "Deploying flink instance"
+            INST_NAME="ea-flink-demo"
+            
+            echo "Getting info from CSV..."
 
-            cp instances/$(params.CP4I_VERSION)/21-ea-flink-cp4i-instance.yaml ./21-ea-flink-instance.yaml
+            SUB_NAME=$(oc get deployment flink-kubernetes-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "FlinkDeployment")] | .[] | select(.metadata.name == "session-cluster-quick-start") | .spec.flinkConfiguration."license.license"')
+
+            echo "Preparing Flink instance manifest"
+
+            ( echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/21-ea-flink-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
+                sh > 21-ea-flink-instance.yaml
+
+            echo "Deploying flink instance"
 
             if [[ "$(params.DEPLOY_EVENT_STREAMS)" != "true" ]] ||
                [[ "$(params.DEPLOY_EVENT_STREAMS_OPERATOR)" != "true" ]]; then
@@ -2747,7 +2783,7 @@ spec:
 
             echo "Preparing event processing instance manifest"
 
-            cp instances/$(params.CP4I_VERSION)/22-event-processing-cp4i-instance.yaml ./22-event-processing-instance.yaml
+            cp instances/$(params.CP4I_VERSION)/22-event-processing-instance.yaml .
             
             if [[ "$(params.EA_OIDC)" == "true" ]]; then
                 EP_AUTH_TYPE='OIDC'
@@ -2804,7 +2840,15 @@ spec:
                 echo "Event Streams is available."    
             fi
 
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-ep-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "EventProcessing")] | .[] | select(.metadata.name == "quick-start-ep") | .spec.license.license')
+
             (echo "cat <<EOF" ; cat 22-event-processing-instance.yaml ;) | \
+                INST_NAME=${EP_INST_NAME} \
+                INST_LIC=${INST_LIC} \
                 EP_AUTH_TYPE=${EP_AUTH_TYPE} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > event-processing-instance.yaml

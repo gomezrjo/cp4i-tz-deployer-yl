@@ -427,7 +427,7 @@ spec:
       description: Deploy Base MQ demo assets
       type: string
     - name: DEPLOY_EXTRA_MQ_DEMOS
-      default: 'false'
+      default: 'true'
       description: Deploy Extra MQ demo assets
       type: string
     - name: DEPLOY_ACE_DEMOS
@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20250929-001"
+            REPO_SIGNATURE="JGR-20251013-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -1021,20 +1021,40 @@ spec:
             
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            INST_NAME='es-demo'
+            
             echo "Configuring event streams instance"
+
+            echo "Preparing resources manifests..."
+
+            ( echo "cat <<EOF" ; cat resources/02a-es-initial-config-jgr-topics.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > es-initial-config-jgr-topics.yaml
+
+            ( echo "cat <<EOF" ; cat resources/02a-es-initial-config-jgr-users.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > es-initial-config-jgr-users.yaml
+
+            ( echo "cat <<EOF" ; cat resources/02a-es-initial-config-ea-topics.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > es-initial-config-ea-topics.yaml
+
+            ( echo "cat <<EOF" ; cat resources/02a-es-initial-config-watsonx-topics.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > es-initial-config-watsonx-topics.yaml
 
             echo "Adding topics and users"
 
-            oc apply -f resources/02a-es-initial-config-jgr-topics.yaml -n
+            oc apply -f es-initial-config-jgr-topics.yaml -n
             $(params.CP4I_NAMESPACE)
 
-            oc apply -f resources/02a-es-initial-config-jgr-users.yaml -n
+            oc apply -f es-initial-config-jgr-users.yaml -n
             $(params.CP4I_NAMESPACE)  
 
-            oc apply -f resources/02a-es-initial-config-ea-topics.yaml -n
+            oc apply -f es-initial-config-ea-topics.yaml -n
             $(params.CP4I_NAMESPACE) 
 
-            oc apply -f resources/02a-es-initial-config-watsonx-topics.yaml -n
+            oc apply -f es-initial-config-watsonx-topics.yaml -n
             $(params.CP4I_NAMESPACE) 
 
             echo "Topcis and users are created"
@@ -1079,9 +1099,15 @@ spec:
 
             echo "Deploying kafka connect instance"
 
-            ES_INST_NAME='es-demo'
+            INST_NAME="jgr-connect-cluster"
+
+            ES_INST_NAME="es-demo"
+
+            ES_USER="kafka-connect-user"
 
             ES_BOOTSTRAP_SERVER=$(oc get eventstreams ${ES_INST_NAME} -n $(params.ES_NAMESPACE) -o=jsonpath='{range .status.kafkaListeners[*]}{.name} {.bootstrapServers}{"\n"}{end}' | awk '$1=="authsslsvc" {print $2}')
+
+            ES_BOOTSTRAP_SERVER=$(oc get eventstreams $ES_INST_NAME -n $(params.ES_NAMESPACE) -o jsonpath='{.status.kafkaListeners[?(@.name=="authsslsvc")].bootstrapServers}')
 
             echo "Updating template with Bootstrap info..."
 
@@ -1106,13 +1132,16 @@ spec:
             ES_VERSION=$(oc get csv/$SUB_NAME -o json | jq -r '.spec.version')
           
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-connect.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                ES_INST_NAME=${ES_INST_NAME} \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
                 ES_VERSION=${ES_VERSION} \
+                ES_USER=${ES_USER} \
                 sh > es-kafka-connect.yaml
 
             echo "Creating Kafka Connect instance..."
 
-            oc apply -f es-kafka-connect.yaml
+            oc apply -f es-kafka-connect.yaml -n $(params.ES_NAMESPACE)
 
             echo "Waiting for Kafka Connect instance to be deployed..."
 
@@ -1800,7 +1829,7 @@ spec:
 
             STACK_HOST=$(oc get route "${APIC_INST_NAME}-gw-gateway" -n $(params.CP4I_NAMESPACE) -o jsonpath="{.spec.host}" | cut -d'.' -f2-)
 
-            ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/23-apic-api-gwy-instance.yaml ;) | \
+            ( echo "cat <<EOF" ; cat instances/common/23-apic-api-gwy-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_VER=${INST_VER} \
                 INST_LIC=${INST_LIC} \
@@ -1893,7 +1922,7 @@ spec:
 
             echo "Preparing YAML file..."
 
-            ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/24-dp-gwy-instance.yaml ;) | \
+            ( echo "cat <<EOF" ; cat instances/common/24-dp-gwy-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_VER=${INST_VER} \
                 INST_LIC=${INST_LIC} \
@@ -4371,15 +4400,27 @@ spec:
             
             ./apic login --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
+            APIC_RESP=$(./apic orgs:list --server $APIC_MGMT_SERVER)
+
+            echo "APIC ORGS:LIST -> $APIC_RESP"
+
             if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+                PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
             else
-                PORG_URL=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
+                PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
             fi      
 
-            USER_REGISTRY_URL=$(./apic user-registries:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}-catalog" '$1 == catname {print $2}')
+            APIC_RESP=$(./apic user-registries:list --server $APIC_MGMT_SERVER --org $APIC_ORG)
 
-            CATALOG_URL=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
+            echo "APIC USER_REGISTRY:LIST -> $APIC_RESP"
+
+            USER_REGISTRY_URL=$(echo "$APIC_RESP" | awk -v catname="${CATALOG_NAME}-catalog" '$1 == catname {print $2}')
+
+            APIC_RESP=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG)
+
+            echo "APIC CATALOGS:LIST -> $APIC_RESP"
+
+            CATALOG_URL=$(echo "$APIC_RESP" | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
 
             APPDEV_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
 
@@ -4394,23 +4435,31 @@ spec:
                 USER_REGISTRY_URL=${USER_REGISTRY_URL} \
                 sh > consumer-org-user.json
 
-            CORG_USER=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk -v username="${APPDEV_USER}" '$1 == username { ++count } END { print count }')
-            
+            APIC_RESP=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
+
+            echo "APIC USERS:LIST -> $APIC_RESP"
+
+            CORG_USER=$(echo "$APIC_RESP" | awk -v username="${APPDEV_USER}" '$1 == username { ++count } END { print count }')
+
             if [[ -z $CORG_USER ]]; then
                 echo "Creating Consumer Org User"
+                APIC_RESP=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json)
+                echo "APIC USERS:CREATE -> $APIC_RESP"
                 if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                    OWNER_URL=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json | awk '{print $3}')
+                    OWNER_URL=$(echo "$APIC_RESP" | awk '{print $3}')
                 else
-                    OWNER_URL=$(./apic users:create --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json | awk '{print $4}')
+                    OWNER_URL=$(echo "$APIC_RESP" | awk '{print $4}')
                 fi 
-            else                
+            else
                 echo "Consumer Org User andre already exists."
+                APIC_RESP=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
+                echo "APIC USERS:LIST -> $APIC_RESP"
                 if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                    OWNER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk '$1 == "andre" {print $3}')
+                    OWNER_URL=$(echo "$APIC_RESP" | awk '$1 == "andre" {print $3}')
                 else
-                    OWNER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog | awk '$1 == "andre" {print $4}')
-                fi                
-            fi 
+                    OWNER_URL=$(echo "$APIC_RESP" | awk '$1 == "andre" {print $4}')
+                fi 
+            fi
 
             echo "Preparing Consumer Org File"
 
@@ -4421,8 +4470,12 @@ spec:
                 CATALOG_URL=${CATALOG_URL} \
                 sh > consumer-org.json
 
-            CORG_LIST=$(./apic consumer-orgs:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v conorgname=$CONSUMER_ORG_NAME '$1 == conorgname { ++count } END { print count }')
-            
+            APIC_RESP=$(./apic consumer-orgs:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME)
+
+            echo "APIC CONSUMER-ORG:LIST -> $APIC_RESP"
+
+            CORG_LIST=$(echo "$APIC_RESP" | awk -v conorgname=$CONSUMER_ORG_NAME '$1 == conorgname { ++count } END { print count }')
+
             if [[ -z $CORG_LIST ]]; then
                 echo "Creating Consumer Org..."
                 ./apic consumer-orgs:create --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME consumer-org.json
@@ -4430,7 +4483,7 @@ spec:
                 echo "Consumer Org AppDevOrg already exists."
             fi
 
-            oc create secret generic jgr-apic-consumer-org -n default --from-literal=username="andre" --from-literal=password="${APPDEV_PWD}" 
+            oc create secret generic jgr-apic-consumer-org -n default --from-literal=username="andre" --from-literal=password="${APPDEV_PWD}"
 
             echo "Consumer Organization has been created."  
         - name: VERSION
