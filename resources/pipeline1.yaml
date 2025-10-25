@@ -332,7 +332,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251013-001"
+            REPO_SIGNATURE="JGR-20251018-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -1587,27 +1587,27 @@ spec:
 
             echo "Preparing eem manager instance manifest"
 
-            cp instances/$(params.CP4I_VERSION)/19-eem-manager-local-instance.yaml .
+            cp instances/common/19-eem-manager-instance.yaml .
 
             if [[ "$(params.EA_OIDC)" == "true" ]]; then
                 EEM_AUTH_TYPE='INTEGRATION_KEYCLOAK'
                 yq -i '.spec.manager.template.pod.spec.containers[0].env[1].name = "EI_AUTH_OAUTH2_ADDITIONAL_SCOPES" | 
                     .spec.manager.template.pod.spec.containers[0].env[1].value = "email,profile,offline_access" | 
-                    .spec.manager.template.pod.spec.containers[0].env[1].value style="single"' 19-eem-manager-local-instance.yaml
+                    .spec.manager.template.pod.spec.containers[0].env[1].value style="single"' 19-eem-manager-instance.yaml
             else
                 EEM_AUTH_TYPE='LOCAL'
             fi
 
-            (echo "cat <<EOF" ; cat 19-eem-manager-local-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat 19-eem-manager-instance.yaml ;) | \
               INST_NAME=${EEM_INST_NAME} \
               INST_LIC=${INST_LIC} \
               EEM_AUTH_TYPE=${EEM_AUTH_TYPE} \
               OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
-              sh > eem-manager-local-instance.yaml
+              sh > eem-manager-instance.yaml
 
             echo "Deploying eem manager instance"
 
-            oc apply -f eem-manager-local-instance.yaml -n
+            oc apply -f eem-manager-instance.yaml -n
             $(params.CP4I_NAMESPACE)
 
             echo "Waiting for eem manager instance to be ready..."
@@ -1630,7 +1630,7 @@ spec:
 
             echo "Deploying eem gateway instance"
 
-            ( echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/20-eem-gateway-instance.yaml ;) | \
+            ( echo "cat <<EOF" ; cat instances/common/20-eem-gateway-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 EEM_GATEWAY_ROUTE=${EEM_GATEWAY_ROUTE} \
@@ -2800,7 +2800,7 @@ spec:
                     .spec.authoring.template.pod.spec.containers[0].env[1].value = "false" | 
                     .spec.authoring.template.pod.spec.containers[0].env[1].value style="single"' 22-event-processing-instance.yaml              
                 echo "Preparing OIDC secret manifest..."
-                OCP_FQDN=$(oc get dnses.config.openshift.io cluster -o jsonpath='{.spec.baseDomain}')
+                OCP_FQDN=$(oc get ingress.config/cluster -o jsonpath='{.spec.domain}')
                 CP4I_KC_CLIENT_ID=$(oc get integrationkeycloakclient -n ibm-common-services | grep integration | awk '{print $1}')
                 ( echo "cat <<EOF" ; cat templates/template-ep-keycloak-client.yaml ;) | \
                     EP_NAME=${EP_INST_NAME} \
