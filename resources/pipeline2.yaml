@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251018-001"
+            REPO_SIGNATURE="JGR-20251101-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -568,6 +568,98 @@ spec:
                 exit 0
             else 
                 echo "SC found"
+            fi
+
+            if [ "$(params.DEPLOY_API_CONNECT_DEMOS)" == "true" ]; then
+                echo "Checking API Key format provided in parameter APIC_API_KEY"
+                DELIMITER="-"
+                IFS="$DELIMITER" read -ra my_array <<< "$(params.APIC_API_KEY)"
+                num_elements=${#my_array[@]}
+                if [ $num_elements -ne 5 ]; then
+                    echo "The API Key does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                    printf false | tee $(results.output.path)
+                    exit 0
+                else
+                    local allowed_chars_regex="^[a-z0-9]+$"
+                    for i in $(seq 0 4); do
+                        string_length=${#my_array[$i]}
+                        case $i in
+                        0)
+                            if [ $string_length -ne 8 ];then
+                                echo "The API Key does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        4)
+                            if [ $string_length -ne 12 ];then
+                                echo "The API Key does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        *)
+                            if [ $string_length -ne 4 ];then
+                                echo "The API Key does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        esac
+                        my_item="${my_array[$i]}"
+                        if [[ ! "$my_item" =~ $allowed_chars_regex  ]]; then
+                            echo "The API Key does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                            printf false | tee $(results.output.path)
+                            exit 0
+                        fi
+                    done
+                fi
+            fi
+
+            if [ "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)" == "true" ]; then
+                echo "Checking Token format provided in parameter EEM_TOKEN"
+                DELIMITER="-"
+                IFS="$DELIMITER" read -ra my_array <<< "$(params.EEM_TOKEN)"
+                num_elements=${#my_array[@]}
+                if [ $num_elements -ne 5 ]; then
+                    echo "The Token does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                    printf false | tee $(results.output.path)
+                    exit 0
+                else
+                    local allowed_chars_regex="^[a-z0-9]+$"
+                    for i in $(seq 0 4); do
+                        string_length=${#my_array[$i]}
+                        case $i in
+                        0)
+                            if [ $string_length -ne 8 ];then
+                                echo "The Token does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        4)
+                            if [ $string_length -ne 12 ];then
+                                echo "The Token does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        *)
+                            if [ $string_length -ne 4 ];then
+                                echo "The Token does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                                printf false | tee $(results.output.path)
+                                exit 0
+                            fi
+                            ;;
+                        esac
+                        my_item="${my_array[$i]}"
+                        if [[ ! "$my_item" =~ $allowed_chars_regex  ]]; then
+                            echo "The Token does not have the expected format. Format should be XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                            printf false | tee $(results.output.path)
+                            exit 0
+                        fi
+                    done
+                fi
             fi
 
             printf true | tee $(results.output.path)
@@ -1836,6 +1928,26 @@ spec:
                 DINST_NAME=${APIC_INST_NAME} \
                 STACK_HOST=${STACK_HOST} \
                 sh > temp-apic-api-gwy-instance.yaml
+
+            yq -i '.spec.podAutoScaling.method = "HPA" |
+                .spec.podAutoScaling.hpa.minReplicas = 1 |
+                .spec.podAutoScaling.hpa.maxReplicas = 3 |
+                .spec.podAutoScaling.hpa.targetCPUUtilizationPercentage = 70' temp-apic-api-gwy-instance.yaml
+
+            IMG_VER=$(oc get apiconnectcluster ${APIC_INST_NAME} -n $(params.CP4I_NAMESPACE) -o jsonpath='{.spec.gateway.dataPowerOverride.version}')
+
+            IMG_LIC=$(oc get apiconnectcluster ${APIC_INST_NAME} -n $(params.CP4I_NAMESPACE) -o jsonpath='{.spec.gateway.dataPowerOverride.license}')
+            
+            IMG_SHA256=$(oc get apiconnectcluster ${APIC_INST_NAME} -n $(params.CP4I_NAMESPACE) -o jsonpath='{.spec.gateway.dataPowerOverride.image}')
+            
+            if [ ! -z "$IMG_VER" ] && [ ! -z "$IMG_LIC" ] && [ ! -z "$IMG_SHA256" ]; then
+                export IMG_VER
+                export IMG_SHA256
+                export IMG_LIC
+                yq -i '.spec.dataPowerOverride.version = strenv(IMG_VER) |
+                  .spec.dataPowerOverride.license = strenv(IMG_LIC) |
+                  .spec.dataPowerOverride.image = strenv(IMG_SHA256)' temp-apic-api-gwy-instance.yaml
+            fi
 
             echo "Creating API Gateway instance..."
 

@@ -278,6 +278,10 @@ spec:
       default: 'true'
       description: Deploy apiconnect
       type: string
+    - name: APIC_DP_OVERRIDE
+      default: 'true'
+      description: Override DP Gateway image in apiconnect
+      type: string
     - name: DEPLOY_EVENT_STREAMS
       default: 'true'
       description: Deploy event streams
@@ -332,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251018-001"
+            REPO_SIGNATURE="JGR-20251101-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -1154,12 +1158,30 @@ spec:
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > apic-instance.yaml
 
-            yq -i '.spec.management.billing.enabled = true |
-                .spec.gateway.podAutoScaling.method = "HPA" |
-                .spec.gateway.podAutoScaling.hpa.minReplicas = 1 |
-                .spec.gateway.podAutoScaling.hpa.maxReplicas = 3 |
-                .spec.gateway.podAutoScaling.hpa.targetCPUUtilizationPercentage = 50' apic-instance.yaml
-            
+            yq -i '.spec.management.billing.enabled = true' apic-instance.yaml
+
+            if [[ "$(params.APIC_DP_OVERRIDE)" == "true" ]]; then 
+                echo "Configuring DataPower override for APIC instance..."
+                IMG_VER=""
+                SUB_NAME=$(oc get deployment datapower-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+                LISTVER=$(oc get csv $SUB_NAME -o json | jq -rc '.spec.customresourcedefinitions.owned | [.[] | select(.kind == "DataPowerService")] | .[] | .specDescriptors |  [.[] | select(.path == "version")] | .[] | ."x-descriptors"[]')
+                while read i; do
+                  TEMPSTR="${i##*:}"
+                  if [[ "$TEMPSTR" > "$IMG_VER" ]]; then
+                    IMG_VER="$TEMPSTR"
+                  fi
+                done < <(echo "$LISTVER")
+                IMG_NAME="datapower-cp4i-$IMG_VER"
+                IMG_SHA256=$(oc get csv $SUB_NAME -o json | jq --arg img_name $IMG_NAME -r '.spec.relatedImages | [.[] | select(.name == $img_name)] | .[] | .image')
+                IMG_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "DataPowerService")] | .[] | select(.metadata.name == "quickstart") | .spec.license.license')
+                export IMG_VER
+                export IMG_SHA256
+                export IMG_LIC
+                yq -i '.spec.gateway.dataPowerOverride.version = strenv(IMG_VER) |
+                  .spec.gateway.dataPowerOverride.license = strenv(IMG_LIC) |
+                  .spec.gateway.dataPowerOverride.image = strenv(IMG_SHA256)' apic-instance.yaml
+            fi
+
             echo "Deploying apic instance"
 
             oc apply -f apic-instance.yaml -n
