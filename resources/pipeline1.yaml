@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251101-001"
+            REPO_SIGNATURE="JGR-20251102-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -476,25 +476,34 @@ spec:
             else
                 echo "Namespace mailpit already exists."
             fi 
-            
-            echo "Generating mailpit-admin password"
 
-            MAILPIT_ADMIN_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
-            
-            echo "Preparing mail server deployment manifest"
-            
-            ( echo "cat <<EOF" ; cat resources/30a-mailpit-deployment.yaml ;) | \
-                MAILPIT_ADMIN_PWD=${MAILPIT_ADMIN_PWD} \
-                sh > mailpit-deployment.yaml
-            
-            echo "Deploying mailtraip server"
-            
-            oc apply -f mailpit-deployment.yaml
+            MYSTR=$(oc get deployment mailpit -n mailpit --ignore-not-found -o jsonpath='{.spec.template.spec.containers[0].env[2].value}')
 
-            echo "Waiting for mail server to be ready..."
+            if [ "$(oc get deployment mailpit -n mailpit --ignore-not-found -o jsonpath='{.status.conditions[0].status}')" == "True" ]; then
+                echo "Mailpit is already deployed..."
+                echo "Getting existing mailpit-admin password..."
+                MAILPIT_ADMIN_PWD="${MYSTR##*:}"
+            else
+                if [ ! -z "$MYSTR" ]; then
+                    echo "Getting existing mailpit-admin password..."
+                    MAILPIT_ADMIN_PWD="${MYSTR##*:}"
+                else
+                    echo "Generating mailpit-admin password"
+                    MAILPIT_ADMIN_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
+                fi
 
-            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True
-            deployment/mailpit -n mailpit 2>/dev/null; do sleep 30; done
+                echo "Preparing mail server deployment manifest"
+                ( echo "cat <<EOF" ; cat resources/30a-mailpit-deployment.yaml ;) | \
+                    MAILPIT_ADMIN_PWD=${MAILPIT_ADMIN_PWD} \
+                    sh > mailpit-deployment.yaml
+
+                echo "Deploying mailtraip server"
+                oc apply -f mailpit-deployment.yaml
+
+                echo "Waiting for mail server to be ready..."
+                while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                    deployment/mailpit -n mailpit 2>/dev/null; do sleep 10; done
+            fi
 
             echo "Creating mail server service" 
 
@@ -1164,7 +1173,7 @@ spec:
                 echo "Configuring DataPower override for APIC instance..."
                 IMG_VER=""
                 SUB_NAME=$(oc get deployment datapower-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
-                LISTVER=$(oc get csv $SUB_NAME -o json | jq -rc '.spec.customresourcedefinitions.owned | [.[] | select(.kind == "DataPowerService")] | .[] | .specDescriptors |  [.[] | select(.path == "version")] | .[] | ."x-descriptors"[]')
+                LISTVER=$(oc get csv $SUB_NAME -o json | jq -rc '.spec.customresourcedefinitions.owned | [.[] | select(.kind == "DataPowerService")] | .[] | select(.version == "v1beta3") | .specDescriptors | [.[] | select(.path == "version")] | .[] | ."x-descriptors"[]')
                 while read i; do
                   TEMPSTR="${i##*:}"
                   if [[ "$TEMPSTR" > "$IMG_VER" ]]; then

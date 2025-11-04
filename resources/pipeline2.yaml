@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251101-001"
+            REPO_SIGNATURE="JGR-20251102-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -4307,135 +4307,131 @@ spec:
             ./apic client-creds:clear
             
             ./apic login --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
-            
-            echo "Getting Values to Publish REST API..."
 
-            echo "Getting Portal URL..."
+            if [ $? -eq 0 ]; then            
+                echo "Getting Values to Publish REST API..."
+                echo "Getting Portal URL..."                
+                if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+                    APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
+                else
+                    APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
+                fi
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
-            else
-                APIC_PORTAL_URL=$(./apic portal-services:list --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
-            fi
+                echo "Getting Sandbox Catalog definition..."
+                ./apic catalogs:get --server $APIC_MGMT_SERVER --org $APIC_ORG --format json $APIC_CATALOG
+                jq --arg CATALOG_NAME $CATALOG_NAME \
+                  --arg CATALOG_TITLE $CATALOG_TITLE \
+                  --arg CATALOG_SUMMARY "$CATALOG_SUMMARY" \
+                  '.name=$CATALOG_NAME |
+                  .title=$CATALOG_TITLE |
+                  .summary=$CATALOG_SUMMARY |
+                  del(.id, .created_at, .updated_at, .url)' \
+                  sandbox.json > demo.json
+                
+                echo "Checking if Demo Catalog already exists..."
+                CATALOGS=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { ++count } END { print count }')
+                if [[ -z $CATALOGS ]]; then 
+                    echo "Creating Demo Catalog..."
+                    CATALOG_URL=$(./apic catalogs:create --server $APIC_MGMT_SERVER --org $APIC_ORG demo.json | awk '{print $2}')
+                else
+                    echo "Demo Catalog already exists."
+                    CATALOG_URL=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { print $2 }')
+                fi
+                
+                echo "Getting Demo Catalog Settings..."
+                ./apic catalog-settings:get --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --format json
+                
+                echo "Updating Catalog Settings File..."
+                jq --arg PORTAL_URL $APIC_PORTAL_URL \
+                  --arg APIC_PORTAL_TYPE $APIC_PORTAL_TYPE \
+                  '.portal.type=$APIC_PORTAL_TYPE |
+                  .portal.portal_service_url=$PORTAL_URL |
+                  .consumer_catalog_enabled=false |
+                  del(.created_at, .updated_at)' \
+                  catalog-setting.json > catalog-setting-demo.json
+                
+                echo "Enabling Portal in Catalog Demo..."
+                ./apic catalog-settings:update --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME catalog-setting-demo.json
+                PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
+                if [[ -z $PRODLIST ]]; then
+                    echo "Publishing Product with Rest API in Demo Catalog..."
+                    ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
+                else
+                    echo "jgrmqapi-product:1.2.0 already exists."
+                fi
 
-            echo "Getting Sandbox Catalog definition..."
-
-            ./apic catalogs:get --server $APIC_MGMT_SERVER --org $APIC_ORG --format json $APIC_CATALOG
-
-            jq --arg CATALOG_NAME $CATALOG_NAME \
-              --arg CATALOG_TITLE $CATALOG_TITLE \
-              --arg CATALOG_SUMMARY "$CATALOG_SUMMARY" \
-              '.name=$CATALOG_NAME |
-              .title=$CATALOG_TITLE |
-              .summary=$CATALOG_SUMMARY |
-              del(.id, .created_at, .updated_at, .url)' \
-              sandbox.json > demo.json
-
-            echo "Checking if Demo Catalog already exists..."
-            
-            CATALOGS=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { ++count } END { print count }')
-            
-            if [[ -z $CATALOGS ]]; then 
-                echo "Creating Demo Catalog..."
-                CATALOG_URL=$(./apic catalogs:create --server $APIC_MGMT_SERVER --org $APIC_ORG demo.json | awk '{print $2}')
-            else
-                echo "Demo Catalog already exists."
-                CATALOG_URL=$(./apic catalogs:list --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { print $2 }')
-            fi
-
-            echo "Getting Demo Catalog Settings..."
-
-            ./apic catalog-settings:get --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --format json
-
-            echo "Updating Catalog Settings File..."
-
-            jq --arg PORTAL_URL $APIC_PORTAL_URL \
-              --arg APIC_PORTAL_TYPE $APIC_PORTAL_TYPE \
-              '.portal.type=$APIC_PORTAL_TYPE |
-              .portal.portal_service_url=$PORTAL_URL |
-              .consumer_catalog_enabled=false |
-              del(.created_at, .updated_at)' \
-              catalog-setting.json > catalog-setting-demo.json
-
-            echo "Enabling Portal in Catalog Demo..."
-
-            ./apic catalog-settings:update --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME catalog-setting-demo.json
-
-            PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
-
-            if [[ -z $PRODLIST ]]; then
-                echo "Publishing Product with Rest API in Demo Catalog..."
-                ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
-            else
-                echo "jgrmqapi-product:1.2.0 already exists."
-            fi
-
-            if [[ "$(params.EA_WATSONX)" == "true" ]]; then
-                if [[ "$(tasks.apic-validate-watsonx-config.results.output)" == "true" ]]; then
-                    PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')
-                    if [[ -z $PRODLIST ]]; then
-                        echo "Publishing Product with WatsonX API in Demo Catalog..."
-                        ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
-                    else
-                        echo "watsonx-product:1.0.0 already exists."
-                    fi
-                fi            
-            fi
-
-            if [[ "$(params.EEM_APIC_INT)" == "true" ]] &&
-               [[ "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)" == "true" ]]; then
-                if [[ ! -z $(oc get deployment ibm-eem-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]] &&
-                   [[ ! -z "$(oc get eventendpointmanagement eem-demo-mgr -n $(params.CP4I_NAMESPACE) --no-headers --ignore-not-found)" ]] &&
-                   [[ ! -z $(oc get deployment eventstreams-cluster-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]] &&
-                   [[ ! -z "$(oc get eventstreams es-demo -n $(params.ES_NAMESPACE) --no-headers --ignore-not-found)" ]] &&
-                   [[ "$(tasks.apic-validate-eem-gtwy-config.results.output)" == "true" ]]; then 
-                    echo "Updating Catalogs with EEM Gateway..."
-                    ./apic gateway-services:get --server $APIC_MGMT_SERVER --org $APIC_ORG --availability-zone $APIC_AVAILABILITY_ZONE --scope org --format json eem-gateway-service
-                    GATEWAY_SERVICE_NAME=$(jq -r '.name' "eem-gateway-service.json")
-                    GATEWAY_SERVICE_URL=$(jq -r '.url' "eem-gateway-service.json")
-                    GATEWAY_SERVICE_TYPE=$(jq -r '.gateway_service_type' "eem-gateway-service.json")
-                    ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-configured-gateway-service.yaml ;) | \
-                        GATEWAY_SERVICE_NAME=${GATEWAY_SERVICE_NAME} \
-                        GATEWAY_SERVICE_URL=${GATEWAY_SERVICE_URL} \
-                        GATEWAY_SERVICE_TYPE=${GATEWAY_SERVICE_TYPE} \
-                        sh > apic-configured-gateway-service.yaml          
-                    echo "Catalog " $APIC_CATALOG
-                    EEM_GTWY_SVC=$(./apic configured-gateway-services:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
-                    
-                    if [[ -z $EEM_GTWY_SVC ]]; then
-                        ./apic configured-gateway-services:create --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog apic-configured-gateway-service.yaml
-                    else
-                        echo "eem-gateway-service already created in catalog " $APIC_CATALOG
-                    fi
-
-                    echo "Catalog " $CATALOG_NAME
-
-                    EEM_GTWY_SVC=$(./apic configured-gateway-services:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
-                    
-                    if [[ -z $EEM_GTWY_SVC ]]; then
-                        ./apic configured-gateway-services:create --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog apic-configured-gateway-service.yaml
-                    else
-                        echo "eem-gateway-service already created in catalog " $CATALOG_NAME
-                    fi
-
-                    PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')
-                    
-                    if [[ -z $PRODLIST ]]; then
-                        if [[ -f cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]] &&
-                           [[ -s cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]]; then 
-                            echo "Publishing Product with AsyncAPI in Demo Catalog..."
-                            ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
-                            ./apic products:get --scope catalog --format json --output cp4i-deployer-helper/artifacts --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product:1.0.0
+                if [[ "$(params.EA_WATSONX)" == "true" ]]; then
+                    if [[ "$(tasks.apic-validate-watsonx-config.results.output)" == "true" ]]; then
+                        PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')
+                        if [[ -z $PRODLIST ]]; then
+                            echo "Publishing Product with WatsonX API in Demo Catalog..."
+                            ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
                         else
-                            echo "Cannot publish Product for AsyncAPI because file does not exist or it is empty."
+                            echo "watsonx-product:1.0.0 already exists."
                         fi
-                    else
-                        echo "Product jgrasyncapi-product:1.0.0 already exists."
+                    fi            
+                fi
+
+                if [[ "$(params.EEM_APIC_INT)" == "true" ]] &&
+                  [[ "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)" == "true" ]]; then
+                    if [[ ! -z $(oc get deployment ibm-eem-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]] &&
+                      [[ ! -z "$(oc get eventendpointmanagement eem-demo-mgr -n $(params.CP4I_NAMESPACE) --no-headers --ignore-not-found)" ]] &&
+                      [[ ! -z $(oc get deployment eventstreams-cluster-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]] &&
+                      [[ ! -z "$(oc get eventstreams es-demo -n $(params.ES_NAMESPACE) --no-headers --ignore-not-found)" ]] &&
+                      [[ "$(tasks.apic-validate-eem-gtwy-config.results.output)" == "true" ]]; then 
+                        echo "Updating Catalogs with EEM Gateway..."
+                        ./apic gateway-services:get --server $APIC_MGMT_SERVER --org $APIC_ORG --availability-zone $APIC_AVAILABILITY_ZONE --scope org --format json eem-gateway-service
+                        GATEWAY_SERVICE_NAME=$(jq -r '.name' "eem-gateway-service.json")
+                        GATEWAY_SERVICE_URL=$(jq -r '.url' "eem-gateway-service.json")
+                        GATEWAY_SERVICE_TYPE=$(jq -r '.gateway_service_type' "eem-gateway-service.json")
+                        ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-configured-gateway-service.yaml ;) | \
+                            GATEWAY_SERVICE_NAME=${GATEWAY_SERVICE_NAME} \
+                            GATEWAY_SERVICE_URL=${GATEWAY_SERVICE_URL} \
+                            GATEWAY_SERVICE_TYPE=${GATEWAY_SERVICE_TYPE} \
+                            sh > apic-configured-gateway-service.yaml          
+                        echo "Catalog " $APIC_CATALOG
+                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+                        
+                        if [[ -z $EEM_GTWY_SVC ]]; then
+                            ./apic configured-gateway-services:create --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog apic-configured-gateway-service.yaml
+                        else
+                            echo "eem-gateway-service already created in catalog " $APIC_CATALOG
+                        fi
+
+                        echo "Catalog " $CATALOG_NAME
+
+                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+                        
+                        if [[ -z $EEM_GTWY_SVC ]]; then
+                            ./apic configured-gateway-services:create --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog apic-configured-gateway-service.yaml
+                        else
+                            echo "eem-gateway-service already created in catalog " $CATALOG_NAME
+                        fi
+
+                        PRODLIST=$(./apic products:list-all --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')
+                        
+                        if [[ -z $PRODLIST ]]; then
+                            if [[ -f cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]] &&
+                              [[ -s cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]]; then 
+                                echo "Publishing Product with AsyncAPI in Demo Catalog..."
+                                ./apic products:publish --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
+                                ./apic products:get --scope catalog --format json --output cp4i-deployer-helper/artifacts --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product:1.0.0
+                            else
+                                echo "Cannot publish Product for AsyncAPI because file does not exist or it is empty."
+                            fi
+                        else
+                            echo "Product jgrasyncapi-product:1.0.0 already exists."
+                        fi
                     fi
                 fi
-            fi
 
-            echo "Catalogs have been configured" 
+                echo "Catalogs have been configured"
+                printf true | tee $(results.output.path)
+            else
+                echo "Couldn't login to API Connect. Check the credentials provided and try again."
+                oc create secret generic jgr-apic-api-key -n default --from-literal=check="invalid"
+                printf false | tee $(results.output.path)
+            fi
         - name: VERSION
           value: latest
       retries: 3
@@ -4623,6 +4619,9 @@ spec:
         - input: "$(tasks.apic-create-apis-draft.results.output)"
           operator: in
           values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
+          operator: in
+          values: ["true"]
       workspaces:
         - name: cp4i-ws
     - name: apic-create-apps-subscription
@@ -4802,6 +4801,9 @@ spec:
           operator: notin
           values: [""]
         - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
           operator: in
           values: ["true"]
       workspaces:
@@ -5052,6 +5054,12 @@ spec:
         - input: "$(params.APIC_API_KEY)"
           operator: notin
           values: [""]
+        - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
+          operator: in
+          values: ["true"]
       workspaces:
         - name: cp4i-ws
     - name: apic-create-cp4i-secret
@@ -5131,6 +5139,9 @@ spec:
           operator: notin
           values: [""]
         - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
           operator: in
           values: ["true"]
       workspaces:
@@ -5265,6 +5276,9 @@ spec:
           operator: notin
           values: [""]
         - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
           operator: in
           values: ["true"]
       workspaces:
