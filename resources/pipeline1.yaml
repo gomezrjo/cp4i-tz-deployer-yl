@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251121-001"
+            REPO_SIGNATURE="JGR-20251130-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -396,7 +396,7 @@ spec:
 
                 "16.1.0" | "SC2")
             
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.4.tgz
+                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.5.tgz
             
                     ;;
             
