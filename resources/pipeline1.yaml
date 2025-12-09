@@ -1679,8 +1679,6 @@ spec:
             echo "EEM gateway instance is ready"
 
             echo "EEM instance is ready"
-
-            echo "WTF!!!"
         - name: VERSION
           value: latest
       runAfter:
