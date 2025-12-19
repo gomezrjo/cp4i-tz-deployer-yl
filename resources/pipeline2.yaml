@@ -487,7 +487,7 @@ spec:
       description: Token to access EEM
       type: string
     - name: DEPLOY_EA_POSTGRESQL_OPERATOR
-      default: 'true'
+      default: 'false'
       description: Deploy PostgreSQL operator
       type: string
     - name: DEPLOY_EA_POSTGRESQL
@@ -528,7 +528,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20251208-001"
+            REPO_SIGNATURE="JGR-20251217-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -705,6 +705,11 @@ spec:
                         CP4I_VER="${CP4I_VER_NUM}"
                         ;;
                     "16.1.2")
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.11.0.tgz
+                        chmod +x apic
+                        CP4I_VER="CD"
+                        ;;
+                    "16.1.3")
                         tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.11.0.tgz
                         chmod +x apic
                         CP4I_VER="CD"
