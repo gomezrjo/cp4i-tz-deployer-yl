@@ -1,6 +1,6 @@
 # cp4i-tz-deployer-yl
 
-This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS/SC2 and v16.1.2 for CD) based on the CP4I end-to-end demo assets.
+This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS/SC2 and v16.1.3 for CD) based on the CP4I end-to-end demo assets.
 
 This repo does not include the extra elements like Instana and Logging, but the core CP4I capabilities and License Service are included now.
 
@@ -37,14 +37,14 @@ After login to your cluster I suggest you do some validations before running the
     ```
     If any of the items reports a `fail` status you should contact TZ Support to investigate the issues before moving forward.
 
-Once you confirm the cluster meets all the requirements, decide if you want to install CP4I v16.1.0 or v16.1.2 and execute the corresponding commands based on the type of cluster you have provisioned.
+Once you confirm the cluster meets all the requirements, decide if you want to install CP4I v16.1.0 or v16.1.3 and execute the corresponding commands based on the type of cluster you have provisioned.
 
 <details>
 <summary>
 OpenShift Cluster (OCP-V) - IBM Cloud
 </summary>
 
-**CP4I v16.1.2**
+**CP4I v16.1.3**
 ```
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
@@ -72,7 +72,7 @@ tkn pipeline start cp4i-demo \
 OpenShift VMWare Cluster - UPI - Deployer - V2
 </summary>
 
-**CP4I v16.1.2**
+**CP4I v16.1.3**
 ```
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
@@ -103,7 +103,7 @@ tkn pipeline start cp4i-demo \
 &nbsp; 
 
 
-You do not have to add the version parameters when using CP4I v16.1.2 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
+You do not have to add the version parameters when using CP4I v16.1.3 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
 ```
     --param EA_OIDC="false"
@@ -197,6 +197,7 @@ The second pipeline will create a few extra configmaps with the result of the pi
 
 ```
 pipeline-cp4i-config-output
+pipeline-lsr-demo-output
 pipeline-apic-demo-output
 pipeline-extra-api-gtwy-demo-output
 pipeline-dp-gtwy-demo-output
@@ -209,6 +210,7 @@ And the commands to use `yq` to get the data without accessing the OCP Console a
 
 ```
 oc get configmap/pipeline-cp4i-config-output -n default -o yaml | yq .data
+oc get configmap/pipeline-lsr-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-apic-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-extra-api-gtwy-demo-output -n default -o yaml | yq .data
 oc get configmap/pipeline-dp-gtwy-demo-output -n default -o yaml | yq .data
