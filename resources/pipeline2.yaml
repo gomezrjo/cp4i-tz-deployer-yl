@@ -526,7 +526,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260114-001"
+            REPO_SIGNATURE="JGR-20260303-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -2394,6 +2394,7 @@ spec:
                 QMGR_NAME_SHORT=${QMGR_NAME_SHORT} \
                 QMGR_NAME_MQ=${QMGR_NAME_MQ} \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-uniform-cluster-qm1.yaml
 
@@ -2426,6 +2427,7 @@ spec:
                 QMGR_NAME_SHORT=${QMGR_NAME_SHORT} \
                 QMGR_NAME_MQ=${QMGR_NAME_MQ} \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-uniform-cluster-qm2.yaml
 
@@ -2594,6 +2596,7 @@ spec:
             
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/10-qmgr-base-single-instance.yaml ;) | \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-base-single-instance.yaml
 
@@ -2673,6 +2676,7 @@ spec:
             
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/11a-qmgr-base-multi-instance-storage.yaml ;) | \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 OCP_FILE_STORAGE=$(params.OCP_FILE_STORAGE) \
                 sh > qmgr-base-multi-instance-storage.yaml
@@ -2753,6 +2757,7 @@ spec:
             
             (echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/14-qmgr-bake-image-instance.yaml ;) | \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > qmgr-bake-image-instance.yaml
 
@@ -2944,6 +2949,7 @@ spec:
             ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/32a-qmgr-nha-crr-instance.yaml ;) | \
                 OCP_CLUSTER_DOMAIN=${OCP_CLUSTER_DOMAIN} \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 sh > 32-qmgr-nha-crr-instance.yaml
 
             echo "Deploying queue manager instance"
@@ -2957,6 +2963,7 @@ spec:
             ( echo "cat <<EOF" ; cat instances/$(tasks.check-cp4i-version.results.output)/32b-qmgr-nha-crr-instance.yaml ;) | \
                 OCP_CLUSTER_DOMAIN=${OCP_CLUSTER_DOMAIN} \
                 MQ_VERSION=${MQ_VERSION} \
+                INST_LIC=${INST_LIC} \
                 sh > 32-qmgr-nha-crr-instance.yaml
 
             echo "Deploying Queue Manager instance..."
