@@ -526,7 +526,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260311-001"
+            REPO_SIGNATURE="JGR-20260328-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -4048,7 +4048,7 @@ spec:
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting value to Integration with SF end point."
                         fi
-                        export TARGET_URL=$(oc get integrationruntime jgr-designer-sfleads -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[0].uri}')'/SFLeads/lead'
+                        export TARGET_URL=$(oc get IntegrationRuntime jgr-designer-sfleads -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="http endpoint")].uri}')'/SFLeads/lead'
                     else
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting dummy values because Integration with SF was not deployed."
@@ -4059,7 +4059,7 @@ spec:
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting value to Integration with Premium MQ end point."
                         fi
-                        export PREMIUM_URL=$(oc get integrationruntime jgr-mqapi-prem -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[0].uri}')
+                        export PREMIUM_URL=$(oc get IntegrationRuntime jgr-mqapi-prem -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="http endpoint")].uri}')
                     else
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting dummy values because Premium Integration with MQ was not deployed."
@@ -4070,7 +4070,7 @@ spec:
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting value to Integration with Default MQ end point."
                         fi
-                        export DEFAULT_URL=$(oc get integrationruntime jgr-mqapi-dflt -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[0].uri}')
+                        export DEFAULT_URL=$(oc get IntegrationRuntime jgr-mqapi-dflt -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="http endpoint")].uri}')
                     else
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Setting dummy values because Default Integration with MQ was not deployed."
