@@ -46,20 +46,24 @@ OpenShift Cluster (OCP-V) - IBM Cloud
 
 **CP4I v16.1.3**
 ```
+oc apply -f resources/jgr-task.yaml
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml
 ```
 
 **CP4I v16.1.0**
 ```
+oc apply -f resources/jgr-task.yaml
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
     --param CP4I_VERSION="SC2"
@@ -74,10 +78,12 @@ OpenShift VMWare Cluster - UPI - Deployer - V2
 
 **CP4I v16.1.3**
 ```
+oc apply -f resources/jgr-task.yaml
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
     --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
@@ -87,10 +93,12 @@ tkn pipeline start cp4i-demo \
 
 **CP4I v16.1.0**
 ```
+oc apply -f resources/jgr-task.yaml
 oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
     --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
@@ -155,6 +163,7 @@ oc apply -f resources/pipeline2.yaml
 tkn pipeline start cp4i-config \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
     --param EEM_APIC_INT="true" \
@@ -176,6 +185,7 @@ oc apply -f resources/pipeline2.yaml
 tkn pipeline start cp4i-config \
     --namespace default \
     --use-param-defaults \
+    --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
     --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
