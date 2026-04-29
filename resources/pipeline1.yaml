@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260424-001"
+            REPO_SIGNATURE="JGR-20260426-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -763,6 +763,12 @@ spec:
             csv/$SUB_NAME 2>/dev/null; do sleep 30; done
 
             echo "Common services operator is ready"
+
+            echo "Configure SC for Common Services"
+
+            oc patch CommonService/common-service -n openshift-operators --type=merge --patch '{"spec":{"storageClass":"'$(params.DEFAULT_SC)'"}}'
+
+            echo "Common service resource is ready"
         - name: VERSION
           value: latest
       runAfter:
@@ -1161,7 +1167,14 @@ spec:
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > apic-instance.yaml
 
-            yq -i '.spec.management.billing.enabled = true' apic-instance.yaml
+            ADMIN_SECRET="${INST_NAME}-gw-admin"
+            
+            export ADMIN_SECRET
+
+            yq -i '.spec.management.billing.enabled = true | 
+                  .spec.gateway.adminUser.secretName = strenv(ADMIN_SECRET) |
+                  .spec.gateway.webGUIManagementEnabled = true |
+                  .spec.gateway.webGUIManagementPort= 9090' apic-instance.yaml
 
             if [[ "$(params.APIC_DP_OVERRIDE)" == "true" ]]; then 
                 echo "Configuring DataPower override for APIC instance..."
@@ -1378,6 +1391,16 @@ spec:
             else
                 echo "Skipping API Gateway configuration for WatsonX."
             fi
+
+            STACK_HOST="apps."$(oc get dnses.config.openshift.io cluster -o jsonpath='{.spec.baseDomain}')
+
+            ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-gw-webui-route.yaml ;) | \
+                INST_NAME=${APIC_INST_NAME} \
+                NS_NAME=$(params.CP4I_NAMESPACE) \
+                STACK_HOST=${STACK_HOST} \
+                sh > apic-gw-webui-route.yaml
+
+            oc apply -f apic-gw-webui-route.yaml -n $(params.CP4I_NAMESPACE)
 
             echo "APIC instance is configured"
         - name: VERSION

@@ -529,7 +529,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260424-001"
+            REPO_SIGNATURE="JGR-20260426-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -1231,16 +1231,21 @@ spec:
             kafkaconnects/jgr-connect-cluster -n
             $(params.ES_NAMESPACE)  2>/dev/null; do sleep 30; done
 
+            INST_NAME="watsonx-demo-sources"
+
             echo "Updating template with Bootsrap info..."
 
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-connect-watsonx.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                ES_INST_NAME=${ES_INST_NAME} \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
                 ES_VERSION=${ES_VERSION} \
+                ES_USER=${ES_USER} \
                 sh > es-kafka-connect-watsonx.yaml
 
             echo "Creating Kafka Connect instance..."
 
-            oc apply -f es-kafka-connect-watsonx.yaml
+            oc apply -f es-kafka-connect-watsonx.yaml -n $(params.ES_NAMESPACE)
 
             echo "Waiting for Kafka Connect instance to be deployed..."
 
@@ -1291,6 +1296,8 @@ spec:
 
             echo "Deploying datagen kafka connectors"
 
+            INST_NAME="jgr-connect-cluster"
+
             ES_INST_NAME='es-demo'
 
             echo "Configuring datagen kafka connectors ..."
@@ -1306,6 +1313,7 @@ spec:
             echo "Updating template with config info..."
 
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-connector-datagen.yaml ;) | \
+                CONNECT_INST_NAME=${INST_NAME} \
                 ES_USER_PWD=${ES_USER_PWD} \
                 ES_CERT_PWD=${ES_CERT_PWD} \
                 ES_SCHEMA_REGISTRY_URL=${ES_SCHEMA_REGISTRY_URL} \
@@ -1313,7 +1321,7 @@ spec:
             
             echo "Creating datagen kafka connectors..."
             
-            oc apply -f es-kafka-connector-datagen.yaml
+            oc apply -f es-kafka-connector-datagen.yaml -n $(params.ES_NAMESPACE)
 
             echo "Waiting for kafka connector to be ready..."
 
@@ -1376,19 +1384,26 @@ spec:
 
             echo "Deploying kafka bridge instance"
 
+            INST_NAME="jgr-es-demo-bridge"
+
             ES_INST_NAME='es-demo'
+
+            ES_USER="kafka-bridge-user"
 
             ES_BOOTSTRAP_SERVER=$(oc get eventstreams ${ES_INST_NAME} -n $(params.ES_NAMESPACE) -o=jsonpath='{range .status.kafkaListeners[*]}{.name} {.bootstrapServers}{"\n"}{end}' | awk '$1=="external" {print $2}')
 
             echo "Updating template with bootsrap info..."
 
             ( echo "cat <<EOF" ; cat templates/template-es-kafka-bridge.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                ES_INST_NAME=${ES_INST_NAME} \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
+                ES_USER=${ES_USER} \
                 sh > es-kafka-bridge.yaml
 
             echo "Creating kafka bridge instance..."
 
-            oc apply -f es-kafka-bridge.yaml
+            oc apply -f es-kafka-bridge.yaml -n $(params.ES_NAMESPACE)
 
             echo "Waiting for kafka bridge instance to be deployed..."
 
@@ -1398,7 +1413,11 @@ spec:
 
             echo "Creating route for kafka bridge instance..."
 
-            oc apply -f resources/02d-es-kafka-bridge-route.yaml
+            ( echo "cat <<EOF" ; cat templates/template-es-kafka-bridge-route.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+              sh > es-kafka-bridge-route.yaml
+
+            oc apply -f es-kafka-bridge-route.yaml -n $(params.ES_NAMESPACE)
 
             echo "Kafka bridge instance is ready"
         - name: VERSION
@@ -1476,6 +1495,7 @@ spec:
             fi
 
             ( echo "cat <<EOF" ; cat templates/template-apic-offload-kafka-secret.yaml ;) | \
+                APIC_INST_NAME=${APIC_INST_NAME} \
                 TRUSTSTORE_PWD=${TRUSTSTORE_PWD} \
                 sh > apic-offload-kafka-secret.yaml
 
@@ -1491,7 +1511,9 @@ spec:
 
             ( echo "cat <<EOF" ; cat templates/template-apic-offload-kafka-scram.yaml ;) | \
                 ES_BOOTSTRAP_SERVER=${ES_BOOTSTRAP_SERVER} \
+                ES_USER=${ES_USER_ID} \
                 ES_USER_PWD=${ES_USER_PWD} \
+                APIC_INST_NAME=${APIC_INST_NAME} \
                 sh > apic-offload-kafka-scram.yaml
 
             oc patch apiconnectcluster ${APIC_INST_NAME} -n $(params.CP4I_NAMESPACE) --type merge --patch-file apic-offload-kafka-scram.yaml
