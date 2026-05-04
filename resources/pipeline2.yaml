@@ -77,10 +77,11 @@ spec:
                             if [[ ! -z "$(oc get APIConnectCluster apim-demo -n $(params.CP4I_NAMESPACE) --no-headers --ignore-not-found)" ]]; then 
                                 API_GTWY_MGR=$(oc get route remote-api-gw-gateway-manager -n cp4i-dp -o jsonpath='{.spec.host}')            
                                 API_GTWY_EP=$(oc get route remote-api-gw-gateway -n cp4i-dp -o jsonpath='{.spec.host}')
+                                API_GTW_WEBUI_URL=$(oc get route apim-demo-gw-gateway-ui -n $(params.CP4I_NAMESPACE) -o jsonpath='{.spec.host}')
                                 APIC_PTL_URI=$(oc get portalcluster apim-demo-ptl -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="portalWeb")].uri}')"cp4i-demo-org/demo"
                                 APIC_CONSUMER_CATALOG_URI=$(oc get managementcluster apim-demo-mgmt -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="consumerCatalog")].uri}')"cp4i-demo-org/sandbox"
                                 echo "----------------------------"
-                                echo "API Gateway Service info:"
+                                echo "Extra API Gateway Service info:"
                                 echo
                                 echo "Management Endpoint URL: https://"$API_GTWY_MGR
                                 echo "API Endpoint Base URL: https://"$API_GTWY_EP
@@ -103,12 +104,22 @@ spec:
                                         echo "   User name: andre"
                                         echo "   User password:" $(oc get secret jgr-apic-consumer-org -n default -o jsonpath='{.data.password}' | base64 -d)
                                         echo "----------------------------"
+                                        echo "API Connect Gateway Service..."
+                                        echo
+                                        echo "Default DP API Gateway:"
+                                        echo "   WebUI URL: https://"$API_GTW_WEBUI_URL
+                                        echo "   User name: admin"
+                                        echo "   User password:" $(oc get secret apim-demo-gw-admin -n $(params.CP4I_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d)
+                                        echo "----------------------------"
                                         oc create configmap pipeline-apic-demo-output -n default \
                                           --from-literal=msg="Pipeline CP4I Config run completed" \
                                           --from-literal=sandbox-portal-url="$APIC_CONSUMER_CATALOG_URI" \
                                           --from-literal=demo-portal-url="$APIC_PTL_URI" \
                                           --from-literal=demo-portal-username=andre \
-                                          --from-literal=demo-portal-user-password="$(oc get secret jgr-apic-consumer-org -n default -o jsonpath='{.data.password}' | base64 -d)"
+                                          --from-literal=demo-portal-user-password="$(oc get secret jgr-apic-consumer-org -n default -o jsonpath='{.data.password}' | base64 -d)" \
+                                          --from-literal=dp-api-gateway-url="https://$API_GTW_WEBUI_URL" \
+                                          --from-literal=dp-api-gateway-username=admin \
+                                          --from-literal=dp-api-gateway-user-password="$(oc get secret apim-demo-gw-admin -n $(params.CP4I_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d)"
                                     else
                                         echo "----------------------------"
                                         echo "APIC Demo assets were not configured because API Key was invalid."
@@ -529,7 +540,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260426-001"
+            REPO_SIGNATURE="JGR-20260430-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -4513,7 +4524,26 @@ spec:
 
             CATALOG_URL=$(echo "$APIC_RESP" | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
 
-            APPDEV_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
+            echo "Generating App Developer password..."
+            
+            VALID_PWD='false'
+
+            while [ "$VALID_PWD" = "false" ]; do
+                APPDEV_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
+                echo "Temp APPDEV_PWD=$APPDEV_PWD"
+                if [[ "$APPDEV_PWD" =~ ^[0-9]+$ ]] || [[ "$APPDEV_PWD" =~ ^[a-z]+$ ]]; then
+                    echo "Invalid password - only numbers or letters are included. Regerating..."
+                else
+                    if echo "$APPDEV_PWD" | grep -qE '(.)\1{2}'; then
+                        echo "Invalid password - three consecutive identical characters are present. Regerating..."
+                    else
+                        echo "Valid password, moving to next step..."
+                        VALID_PWD='true'
+                    fi
+                fi
+            done
+
+            echo "Final APPDEV_PWD=$APPDEV_PWD"
 
             echo "Preparing Consumer Org User File"
 

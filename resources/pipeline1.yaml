@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260426-001"
+            REPO_SIGNATURE="JGR-20260430-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -745,9 +745,24 @@ spec:
 
             echo "Common services catalog source is ready"
 
-            echo "Installing common services operator"
+            echo "Preparing common services operator manifest"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/00-common-service-subscription.yaml
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/02-common-services-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/00-common-service-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 00-common-service-subscription.yaml
+
+            echo "Installing common services operator"
+
+            oc apply -f 00-common-service-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -805,14 +820,34 @@ spec:
 
             echo "Platform navigator catalog source is ready"
 
+            echo "Preparing platform navigator operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/03-platform-navigator-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/01-platform-navigator-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 01-platform-navigator-subscription.yaml
+
             echo "Installing platform navigator operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/01-platform-navigator-subscription.yaml
+            oc apply -f 01-platform-navigator-subscription.yaml
 
             echo "Getting operator version..."
-            
+                        
             SUB_NAME=''
-            
+
             while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment ibm-integration-platform-navigator-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
 
             echo "Operator: " $SUB_NAME
@@ -919,9 +954,31 @@ spec:
 
             echo "Asset repository catalog source is ready"
 
+            echo "Preparing asset repository operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/04-asset-repo-catalog-source.yaml)
+
+            OP_REL="${OP_REL%????????????}"
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/02-asset-repo-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 02-asset-repo-subscription.yaml
+
             echo "Installing asset repository operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/02-asset-repo-subscription.yaml
+            oc apply -f 02-asset-repo-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -1040,9 +1097,29 @@ spec:
 
             echo "Datapower catalog source is ready"
 
+            echo "Preparing datapower operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/05-datapower-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/03-datapower-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 03-datapower-subscription.yaml
+
             echo "Installing datapower operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/03-datapower-subscription.yaml
+            oc apply -f 03-datapower-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -1097,9 +1174,29 @@ spec:
 
             echo "APIC catalog source is ready"
 
+            echo "Preparing apic operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/04-api-connect-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 04-api-connect-subscription.yaml
+
             echo "Installing apic operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/04-api-connect-subscription.yaml
+            oc apply -f 04-api-connect-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -1451,9 +1548,24 @@ spec:
 
             echo "Event streams catalog source is ready"
 
+            echo "Preparing event streams operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/08-event-streams-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/05-event-streams-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 05-event-streams-subscription.yaml
+
             echo "Installing event streams operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/05-event-streams-subscription.yaml
+            oc apply -f 05-event-streams-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -1580,9 +1692,24 @@ spec:
 
             echo "Event endpoint management catalog source is ready"
 
+            echo "Preparing event endpoint managenent operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/13-eem-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/09-eem-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 09-eem-subscription.yaml
+
             echo "Installing event endpoint managenent operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/09-eem-subscription.yaml
+            oc apply -f 09-eem-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -2019,9 +2146,29 @@ spec:
 
             echo "MQ catalog source is ready"
 
+            echo "Preparing mq operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/09-mq-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/06-mq-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 06-mq-subscription.yaml
+
             echo "Installing mq operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/06-mq-subscription.yaml
+            oc apply -f 06-mq-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -2221,9 +2368,29 @@ spec:
 
             echo "App connect catalog source is ready"
 
+            echo "Preparing app connect operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/10-app-connect-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Adding suffix to Subscription version for SC2 release"
+              SUB_EXT="-sc2"
+            else
+              SUB_EXT=""
+            fi
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/07-app-connect-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 07-app-connect-subscription.yaml
+
             echo "Installing app connect operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/07-app-connect-subscription.yaml 
+            oc apply -f 07-app-connect-subscription.yaml 
 
             echo "Getting operator version..."
             
@@ -2636,9 +2803,24 @@ spec:
 
             echo "Flink catalog source is ready"
 
+            echo "Preparing flink operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/14-ea-flink-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/10-ea-flink-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 10-ea-flink-subscription.yaml
+
             echo "Installing flink operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/10-ea-flink-subscription.yaml
+            oc apply -f 10-ea-flink-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -2774,9 +2956,24 @@ spec:
 
             echo "Event processing catalog source is ready"
 
+            echo "Preparing event processing operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/15-event-processing-catalog-source.yaml)
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/11-event-processing-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 11-event-processing-subscription.yaml
+
             echo "Installing event processing operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/11-event-processing-subscription.yaml
+            oc apply -f 11-event-processing-subscription.yaml
 
             echo "Getting operator version..."
             
