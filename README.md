@@ -42,7 +42,7 @@ Once you confirm the cluster meets all the requirements, execute the following c
     ```
 2. Deploy the pipeline:
    ```
-   oc apply -f resources/pipeline4.yaml
+   oc apply -f resources/pipeline1.yaml
    ```
 
 Then decide if you want to install CP4I v16.1.0 or v16.1.3 and execute the corresponding command.
