@@ -8,17 +8,14 @@ It will get you an environment like the one below:
 
 ![Platform UI](images/Platform_UI.png)
 
-For these assets to work you will need an OCP cluster in TechZone using either the **OpenShift Cluster (OCP-V) - IBM Cloud** or **OpenShift VMWare Cluster - UPI - Deployer - V2** templates which are part of the *TechZone Certified Base Images* collection under *Base Openshift*. You can access the collection clicking [here](https://techzone.ibm.com/collection/tech-zone-certified-base-images/journey-base-open-shift). You can use the following image as a reference:
+For these assets to work you will need an OCP cluster in TechZone using the **OpenShift Cluster OCPv IBM Cloud** template which is part of the *Certified Base OpenShift Clusters* collection. You can access the collection clicking [here](https://techzone.ibm.com/collection/69c6c2db1bdc18e8109d08ed). You can use the following image as a reference: 
 
-![TechZone Collection](images/TZ_Collection.png)
+![TechZone Collection](images/TZ_Collection_OCP_Clusters.png)
 
-When making the reservation select **v4.16** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. Note you can use OCP v4.15 but I recommend you use the latest version if possible. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions external ODF storage. The following images shows the recommended values for each type of cluster.
+When making the reservation in the new model you will need to fill out several pages and when you get to the **Configuration** section customize the values to meet the CP4I requirements using **v4.18** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. You can still use OCP v4.16 but I recommend you use the version mentioned above when possible, but note OCP v4.17 is not supported by CP4I anymore, so avoid this version. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions local and external ODF storage. The following image shows the recommended values to use.
 
-**OpenShift Cluster (OCP-V) - IBM Cloud:**
-![TechZone Reservation OCP-V](images/TZ_Reservation_ocpv.png)
-
-**OpenShift VMWare Cluster - UPI - Deployer - V2:**
-![TechZone Reservation Deployer](images/TZ_Reservation_vmw_upi.png)
+**OpenShift Cluster OCPv IBM Cloud:**
+![TechZone Reservation OCP-V](images/TZ_Reservation_ocpv_2.png)
 
 To use this repo you need to have the `oc` command-line interface installed in your workstation alongside with the `tkn` command-line interface.
 
