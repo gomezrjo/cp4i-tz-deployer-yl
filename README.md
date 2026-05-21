@@ -119,11 +119,6 @@ Note the core deployment does not include the extra demo assets like App Connect
 
 Then run the following two commands once the previous pipeline run has completed successfully. In the command I'm enabling integration between APIC and EEM using parameter *EEM_APIC_INT*, if you do not need to demo this functionality simply remove that line. The command also enables some extra WatsonX assets with parameter *EA_WATSONX*, but they rely on BAM that was deprecated recently, so even though you can deploy them, you won't be able to use them until an alternative is found, if you do not want to enable those assets remove that line.
 
-<details>
-<summary>
-OpenShift Cluster (OCP-V) - IBM Cloud
-</summary>
-
 ```
 oc apply -f resources/pipeline2.yaml
 tkn pipeline start cp4i-config \
@@ -137,33 +132,6 @@ tkn pipeline start cp4i-config \
     --param EEM_TOKEN=<eem-token> \
     --param APIC_API_KEY=<api-key>
 ```
-
-</details>
-&nbsp; 
-
-<details>
-<summary>
-OpenShift VMWare Cluster - UPI - Deployer - V2
-</summary>
-
-```
-oc apply -f resources/pipeline2.yaml
-tkn pipeline start cp4i-config \
-    --namespace default \
-    --use-param-defaults \
-    --pipeline-timeout "3h0m0s" \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
-    --pod-template resources/pod-template.yaml \
-    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
-    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs" \
-    --param EEM_APIC_INT="true" \
-    --param EA_WATSONX="true" \
-    --param EEM_TOKEN=<eem-token> \
-    --param APIC_API_KEY=<api-key>
-```
-
-</details>
-&nbsp; 
 
 After approximately one hour, you will see the following result in the OCP Console and the full CP4I demo stack including Event Automation will be ready to be used.
 
