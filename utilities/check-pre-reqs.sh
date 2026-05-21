@@ -5,7 +5,7 @@ if [ ! command -v awk &> /dev/null ]; then echo "awk could not be found"; exit 1
 echo "Checking OCP version..."
 OCP_VER=$(oc version -o json | jq -r '.openshiftVersion' | rev | cut -d'.' -f2- | rev)
 case "$OCP_VER" in
-    "4.14"|"4.15"|"4.16"|"4.17"|"4.18")
+    "4.16"|"4.18")
         echo "OCP version Pass"
         ;;
     *)
@@ -22,7 +22,7 @@ else
     echo "RedHat OpenShift Pipelines Operator Fail"
 fi
 #
-if [ ! -z $(oc get csv --no-headers --ignore-not-found | awk '$1 ~ "ibm-tz-deployer" {print "True"}') ]
+if [ ! -z $(oc get csv --no-headers --ignore-not-found | awk '$1 ~ "itz-deployer-operator" {print "True"}') ]
 then
     echo "IBM TZ Deployer Operator Pass"
 else
@@ -36,4 +36,13 @@ then
     echo "Storage Classes Pass"
 else
     echo "Storage Classes Fail"
+fi
+#
+echo
+echo "Checking persistent volume claims..."
+if [ "$(oc get pvc -n openshift-pipelines --no-headers --ignore-not-found  | awk '$1 == "postgredb-tekton-results-postgres-0" {print $2}')" == "Bound" ]
+then
+    echo "PVC Pass"
+else
+    echo "PVC Fail"
 fi
