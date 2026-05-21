@@ -34,17 +34,25 @@ After login to your cluster I suggest you do some validations before running the
     ```
     If any of the items reports a `fail` status you should contact TZ Support to investigate the issues before moving forward.
 
-Once you confirm the cluster meets all the requirements, decide if you want to install CP4I v16.1.0 or v16.1.3 and execute the corresponding commands based on the type of cluster you have provisioned.
+Once you confirm the cluster meets all the requirements, execute the following commands to get the pipeline in your cluster.
+
+1. Deploy the task used by the pipeline:
+    ```
+    oc apply -f resources/jgr-task.yaml
+    ```
+2. Deploy the pipeline:
+   ```
+   oc apply -f resources/pipeline4.yaml
+   ```
+
+Then decide if you want to install CP4I v16.1.0 or v16.1.3 and execute the corresponding command.
 
 <details>
 <summary>
-OpenShift Cluster (OCP-V) - IBM Cloud
+CP4I v16.1.3
 </summary>
 
-**CP4I v16.1.3**
 ```
-oc apply -f resources/jgr-task.yaml
-oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
@@ -52,61 +60,22 @@ tkn pipeline start cp4i-demo \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml
 ```
-
-**CP4I v16.1.0**
-```
-oc apply -f resources/jgr-task.yaml
-oc apply -f resources/pipeline1.yaml
-tkn pipeline start cp4i-demo \
-    --namespace default \
-    --use-param-defaults \
-    --pipeline-timeout "3h0m0s" \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
-    --pod-template resources/pod-template.yaml \
-    --param CP4I_VERSION="SC2"
-```
 </details>
-&nbsp; 
-
 <details>
 <summary>
-OpenShift VMWare Cluster - UPI - Deployer - V2
+CP4I v16.1.0
 </summary>
 
-**CP4I v16.1.3**
 ```
-oc apply -f resources/jgr-task.yaml
-oc apply -f resources/pipeline1.yaml
 tkn pipeline start cp4i-demo \
     --namespace default \
     --use-param-defaults \
     --pipeline-timeout "3h0m0s" \
     --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
     --pod-template resources/pod-template.yaml \
-    --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
-    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
-    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs"
-```
-
-**CP4I v16.1.0**
-```
-oc apply -f resources/jgr-task.yaml
-oc apply -f resources/pipeline1.yaml
-tkn pipeline start cp4i-demo \
-    --namespace default \
-    --use-param-defaults \
-    --pipeline-timeout "3h0m0s" \
-    --workspace name=cp4i-ws,volumeClaimTemplateFile=resources/workspace-template.yaml \
-    --pod-template resources/pod-template.yaml \
-    --param DEFAULT_SC="ocs-storagecluster-ceph-rbd" \
-    --param OCP_BLOCK_STORAGE="ocs-storagecluster-ceph-rbd" \
-    --param OCP_FILE_STORAGE="ocs-storagecluster-cephfs" \
     --param CP4I_VERSION="SC2"
 ```
-
 </details>
-&nbsp; 
-
 
 You do not have to add the version parameters when using CP4I v16.1.3 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
