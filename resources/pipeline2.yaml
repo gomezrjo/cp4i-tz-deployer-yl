@@ -540,7 +540,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260516-001"
+            REPO_SIGNATURE="JGR-20260520-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -773,7 +773,7 @@ spec:
 
             echo "Installing license service operator"
             
-            oc apply -f subscriptions/$(tasks.check-cp4i-version.results.output)/00-license-service-subscription.yaml
+            oc apply -f subscriptions/00-license-service-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -837,7 +837,7 @@ spec:
 
             echo "Installing license reporter operator"
             
-            oc apply -f subscriptions/$(tasks.check-cp4i-version.results.output)/00-license-reporter-subscription.yaml
+            oc apply -f subscriptions/00-license-reporter-subscription.yaml
 
             echo "Getting operator version..."
             

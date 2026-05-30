@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260516-001"
+            REPO_SIGNATURE="JGR-20260520-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -755,7 +755,7 @@ spec:
 
             SUB_EXT=""
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/00-common-service-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/00-common-services-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 00-common-service-subscription.yaml
@@ -835,7 +835,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/01-platform-navigator-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/01-platform-navigator-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 01-platform-navigator-subscription.yaml
@@ -915,6 +915,16 @@ spec:
             $(params.CP4I_NAMESPACE) 2>/dev/null; do sleep 30; done
 
             echo "Platform navigator instance is ready"
+
+            echo "Apply KeyCloak workaround"
+            
+            oc apply -f resources/99-keycloak-workaround.yaml
+
+            while ! oc wait --for=condition=Ready
+            pod/cs-keycloak-0 -n ibm-common-services 2>/dev/null;
+            do sleep 30; done
+
+            echo "KeyCloak has been updated"
         - name: VERSION
           value: latest
       runAfter:
@@ -971,7 +981,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/02-asset-repo-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/02-asset-repo-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 02-asset-repo-subscription.yaml
@@ -1112,7 +1122,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/03-datapower-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/03-datapower-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 03-datapower-subscription.yaml
@@ -1189,7 +1199,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/04-api-connect-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 04-api-connect-subscription.yaml
@@ -1558,7 +1568,7 @@ spec:
 
             SUB_EXT=""
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/05-event-streams-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/05-event-streams-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 05-event-streams-subscription.yaml
@@ -1702,7 +1712,7 @@ spec:
 
             SUB_EXT=""
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/09-eem-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/09-eem-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 09-eem-subscription.yaml
@@ -2161,7 +2171,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/06-mq-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/06-mq-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 06-mq-subscription.yaml
@@ -2383,7 +2393,7 @@ spec:
               SUB_EXT=""
             fi
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/07-app-connect-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/07-app-connect-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 07-app-connect-subscription.yaml
@@ -2660,7 +2670,7 @@ spec:
 
             echo "Installing aspera operator"
             
-            oc apply -f subscriptions/$(params.CP4I_VERSION)/08-aspera-hsts-subscription.yaml
+            oc apply -f subscriptions/08-aspera-hsts-subscription.yaml
 
             echo "Getting operator version..."
             
@@ -2813,7 +2823,7 @@ spec:
 
             SUB_EXT=""
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/10-ea-flink-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/10-ea-flink-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 10-ea-flink-subscription.yaml
@@ -2966,7 +2976,7 @@ spec:
 
             SUB_EXT=""
 
-            ( echo "cat <<EOF" ; cat subscriptions/$(params.CP4I_VERSION)/11-event-processing-subscription.yaml ;) | \
+            ( echo "cat <<EOF" ; cat subscriptions/11-event-processing-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
               SUB_EXT=${SUB_EXT} \
               sh > 11-event-processing-subscription.yaml
