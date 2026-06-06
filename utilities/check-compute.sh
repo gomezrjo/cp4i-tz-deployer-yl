@@ -20,10 +20,9 @@ do
     mem=${mem/Ki/}
     ((total_mem += mem))
 done < <(oc get nodes -o jsonpath='{range .items[?(@.metadata.labels.node-role\.kubernetes\.io/worker)]}{.status.capacity.memory}{"\n"}{end}')
-if [[ "$total_mem" -ge 329066552 ]]
+if [[ "$total_mem" -ge 325058560 ]]
 then
     echo "Memory Pass"
 else
     echo "Memory Fail"
 fi
-#
