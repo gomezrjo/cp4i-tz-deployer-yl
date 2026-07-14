@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260621-001"
+            REPO_SIGNATURE="JGR-20260630-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -349,7 +349,8 @@ spec:
             if grep -q "${REPO_SIGNATURE}" cp4i-deployer-helper/signature; then
                 echo "Valid signature in helper repo."
             else
-                echo "Helper repo is out of sync, update this repo."
+                echo "Helper repo is out of sync, update this repo in your workstation."
+                echo "Once updated locally re-apply the pipeline to your cluster before running the pipeline again."
                 printf false | tee $(results.output.path)
                 exit 0
             fi
@@ -396,7 +397,7 @@ spec:
 
                 "SC2")
             
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.8.tgz
+                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.0.tgz
             
                     ;;
             
@@ -896,7 +897,7 @@ spec:
 
             echo "Preparing platform navigator instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/common/01-platform-navigator-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/01-platform-navigator-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
@@ -974,12 +975,12 @@ spec:
 
             SUB_VER="${SUB_VER%.*}"
 
-            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-              echo "Adding suffix to Subscription version for SC2 release"
-              SUB_EXT="-sc2"
-            else
+            #if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+            #  echo "Adding suffix to Subscription version for SC2 release"
+            #  SUB_EXT="-sc2"
+            #else
               SUB_EXT=""
-            fi
+            #fi
 
             ( echo "cat <<EOF" ; cat subscriptions/02-asset-repo-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
@@ -1043,7 +1044,7 @@ spec:
 
             echo "Preparing asset repo instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/common/02-asset-repo-ai-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/02-asset-repo-ai-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
@@ -1185,19 +1186,21 @@ spec:
             echo "APIC catalog source is ready"
 
             echo "Preparing apic operator manifest"
-            
+                        
             OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml)
+
+            OP_REL="${OP_REL%????????????}"
 
             SUB_VER="${OP_REL##*-}"
 
             SUB_VER="${SUB_VER%.*}"
 
-            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-              echo "Adding suffix to Subscription version for SC2 release"
-              SUB_EXT="-sc2"
-            else
+            #if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+            #  echo "Adding suffix to Subscription version for SC2 release"
+            #  SUB_EXT="-sc2"
+            #else
               SUB_EXT=""
-            fi
+            #fi
 
             ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
@@ -1264,9 +1267,14 @@ spec:
 
             INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.license.license')
 
+            echo "Confirming APIC Operator is ready"
+
+            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
+            csv/$SUB_NAME -n $NS_NAME 2>/dev/null; do sleep 30; done
+            
             echo "Preparing apic instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/common/04-apic-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/04-apic-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_VER=${INST_VER} \
@@ -1278,8 +1286,9 @@ spec:
             
             export ADMIN_SECRET
 
-            yq -i '.spec.management.billing.enabled = true | 
-                  .spec.gateway.adminUser.secretName = strenv(ADMIN_SECRET) |
+            #yq -i '.spec.management.billing.enabled = true | 
+            
+            yq -i '.spec.gateway.adminUser.secretName = strenv(ADMIN_SECRET) |
                   .spec.gateway.webGUIManagementEnabled = true |
                   .spec.gateway.webGUIManagementPort= 9090' apic-instance.yaml
 
@@ -1355,7 +1364,7 @@ spec:
 
             echo "Configuring apic instance"
 
-            ./apic --accept-license --live-help=false
+            ./apic --insecure-skip-tls-verify --accept-license --live-help=false
 
             echo "Setting apic variables"
 
@@ -1387,17 +1396,17 @@ spec:
 
             echo "Login to APIC with CMC Admin User..."
 
-            ./apic client-creds:clear
+            ./apic client-creds:clear --insecure-skip-tls-verify
 
-            ./apic login --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
 
             echo "Enabling API Key multiple time usage..."
 
-            ./apic cloud-settings:update --server $APIC_MGMT_SERVER cp4i-deployer-helper/templates/template-apic-cloud-settings.yaml
+            ./apic cloud-settings:update --insecure-skip-tls-verify --server $APIC_MGMT_SERVER cp4i-deployer-helper/templates/template-apic-cloud-settings.yaml
 
             echo "Getting Mail Server Info..."
 
-            ./apic mail-servers:get --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json $APIC_MAILSERVER_NAME
+            ./apic mail-servers:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json $APIC_MAILSERVER_NAME
             
             echo "Updating Mail Server Info..."
             
@@ -1410,11 +1419,11 @@ spec:
             
             echo "Updating Mail Server..."
             
-            ./apic mail-servers:update --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG $APIC_MAILSERVER_NAME "${APIC_MAILSERVER_NAME}-updated.json"
+            ./apic mail-servers:update --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG $APIC_MAILSERVER_NAME "${APIC_MAILSERVER_NAME}-updated.json"
             
             echo "Getting CMC Admin User Info..."
             
-            ./apic users:get --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY --format json $APIC_CMC_USER
+            ./apic users:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY --format json $APIC_CMC_USER
             
             echo "Updating CMC Admin User eMail Info..."
             
@@ -1425,21 +1434,21 @@ spec:
             
             echo "Updating CMC Admin User..."
             
-            ./apic users:update --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY $APIC_CMC_USER "${APIC_CMC_USER}-updated.json"
+            ./apic users:update --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY $APIC_CMC_USER "${APIC_CMC_USER}-updated.json"
 
             PORG_NAME='cp4i-demo-org'
 
             PORG_TITLE='CP4I Demo Provider Org'
 
-            PORG=$(./apic orgs:list --server $APIC_MGMT_SERVER | awk -v porgname=$PORG_NAME '$1 == porgname { ++count } END { print count }')
+            PORG=$(./apic orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER | awk -v porgname=$PORG_NAME '$1 == porgname { ++count } END { print count }')
 
             if [[ -z $PORG ]]; then
                 echo "Getting Values to Create Provider Organization..."      
-                if [ "$(params.CP4I_VERSION)" = "CD" ]; then 
-                    USER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY | awk -v user=$APIC_CMC_USER '$1 == user {print $3}')
-                else
-                    USER_URL=$(./apic users:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY | awk -v user=$APIC_CMC_USER '$1 == user {print $4}')
-                fi
+                #if [ "$(params.CP4I_VERSION)" = "CD" ]; then 
+                    USER_URL=$(./apic users:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY | awk -v user=$APIC_CMC_USER '$1 == user {print $3}')
+                #else
+                #    USER_URL=$(./apic users:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --user-registry $APIC_USER_REGISTRY | awk -v user=$APIC_CMC_USER '$1 == user {print $4}')
+                #fi
                 echo "Preparing POrg File for user " $APIC_CMC_USER
                 ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-provider-org.json ;) | \
                   PORG_NAME=${PORG_NAME} \
@@ -1447,7 +1456,7 @@ spec:
                   USER_URL=${USER_URL} \
                   sh > provider-org.json
                 echo "Creating PORG for user " $APIC_CMC_USER
-                ./apic orgs:create --server $APIC_MGMT_SERVER provider-org.json
+                ./apic orgs:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER provider-org.json
                 echo "Provider Organization has been created."
             else
                 echo "Provider Organization already existed."
@@ -1470,29 +1479,29 @@ spec:
                   APIC_INST_NAME=${APIC_INST_NAME} \
                   APIC_CERT=${APIC_CERT} \
                   sh > ea-watsonx-apic-keystore.json
-                KEYS_LIST=$(./apic keystores:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-keystore" { ++count } END { print count }')
+                KEYS_LIST=$(./apic keystores:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-keystore" { ++count } END { print count }')
                 if [[ -z $KEYS_LIST ]]; then 
                     echo "Creating KeyStore for API Gateway Service with WatsonX..."
-                    ./apic keystores:create --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-apic-keystore.json    
+                    ./apic keystores:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-apic-keystore.json    
                 else
                     echo "KeyStore for API Gateway Service already exists."
                 fi
-                KEYSTORE_URL=$(./apic keystores:get ea-watsonx-keystore --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
+                KEYSTORE_URL=$(./apic keystores:get ea-watsonx-keystore --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
                 ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-ea-watsonx-tls-server-profile.json ;) | \
                   KEYSTORE_URL=${KEYSTORE_URL} \
                   sh > ea-watsonx-tls-server-profile.json
-                TLS_SP_LIST=$(./apic tls-server-profiles:list-all --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-tls-server-profile:1.0.0" { ++count } END { print count }')
+                TLS_SP_LIST=$(./apic tls-server-profiles:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-tls-server-profile:1.0.0" { ++count } END { print count }')
                 if [[ -z $TLS_SP_LIST ]]; then 
                     echo "Creating TLS Server Profile for WatsonX..."
-                    ./apic tls-server-profiles:create --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-tls-server-profile.json
+                    ./apic tls-server-profiles:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-tls-server-profile.json
                 else
                     echo "TLS Server Profile for WatsonX already exists."
                 fi  
-                TLS_SERVER_PROFILE_URL=$(./apic tls-server-profiles:get --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-tls-server-profile:1.0.0 | awk '{print$3}') 
+                TLS_SERVER_PROFILE_URL=$(./apic tls-server-profiles:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json ea-watsonx-tls-server-profile:1.0.0 | awk '{print$3}') 
                 ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-api-gateway-settings.json ;) | \
                   TLS_SERVER_PROFILE_URL=${TLS_SERVER_PROFILE_URL} \
                   sh > apic-api-gateway-settings.json
-                ./apic gateway-services:update --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE api-gateway-service apic-api-gateway-settings.json
+                ./apic gateway-services:update --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE api-gateway-service apic-api-gateway-settings.json
                 rm -f tls.crt
                 rm -f tls.key
             else
@@ -1630,7 +1639,7 @@ spec:
 
             echo "Preparing event streams instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/common/05-event-streams-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/05-event-streams-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_LIC=${INST_LIC} \
                 INST_USE=${INST_USE} \
@@ -1815,10 +1824,10 @@ spec:
 
             echo "Deploying eem gateway instance"
 
-            ( echo "cat <<EOF" ; cat instances/common/20-eem-gateway-instance.yaml ;) | \
+            ( echo "cat <<EOF" ; cat instances/20-eem-gateway-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
+                EEM_INST_NAME=${EEM_INST_NAME} \
                 INST_LIC=${INST_LIC} \
-                EEM_GATEWAY_ROUTE=${EEM_GATEWAY_ROUTE} \
                 sh > eem-gateway-instance.yaml
 
             oc apply -f eem-gateway-instance.yaml -n
@@ -2008,7 +2017,7 @@ spec:
 
             cd workspace/cp4i-ws
 
-            ./apic --accept-license --live-help=false
+            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
 
             APIC_INST_NAME='apim-demo'
 
@@ -2051,9 +2060,9 @@ spec:
 
             echo "Login to APIC with CMC Admin User..."
 
-            ./apic client-creds:clear
+            ./apic client-creds:clear --insecure-skip-tls-verify
 
-            ./apic login --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
 
             cat $APIC_INST_NAME-tls-crt.pem $APIC_INST_NAME-tls-key.pem > $APIC_INST_NAME-tls-combined.pem
 
@@ -2064,11 +2073,11 @@ spec:
                 APIC_CERT=${APIC_CERT} \
                 sh > eem-apic-keystore.json
 
-            KEYS_LIST=$(./apic keystores:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-keystore" { ++count } END { print count }')
+            KEYS_LIST=$(./apic keystores:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-keystore" { ++count } END { print count }')
 
             if [[ -z $KEYS_LIST ]]; then 
                 echo "Creating KeyStore for EEM Gateway Service..."
-                ./apic keystores:create --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-keystore.json
+                ./apic keystores:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-keystore.json
             else
                 echo "KeyStore for EEM Gateway Service already exists."            
             fi
@@ -2080,29 +2089,29 @@ spec:
                 APIC_CERT=${APIC_CERT} \
                 sh > eem-apic-truststore.json
 
-            KEYS_LIST=$(./apic truststores:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-truststore" { ++count } END { print count }')
+            KEYS_LIST=$(./apic truststores:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-truststore" { ++count } END { print count }')
 
             if [[ -z $KEYS_LIST ]]; then 
                 echo "Creating TrustStore for EEM Gateway Service..."
-                ./apic truststores:create --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-truststore.json
+                ./apic truststores:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-truststore.json
             else            
                 echo "TrustStore for EEM Gateway Service already exists."
             fi
             
-            KEYSTORE_URL=$(./apic keystores:get eem-keystore --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
+            KEYSTORE_URL=$(./apic keystores:get eem-keystore --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
 
-            TRUSTSTORE_URL=$(./apic truststores:get eem-truststore --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
+            TRUSTSTORE_URL=$(./apic truststores:get eem-truststore --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '{print$3}')
 
             ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-eem-apic-tls-client-profile.json ;) | \
                 KEYSTORE_URL=${KEYSTORE_URL} \
                 TRUSTSTORE_URL=${TRUSTSTORE_URL} \
                 sh > eem-apic-tls-client-profile.json
 
-            TLSCPS_LIST=$(./apic tls-client-profiles:list-all --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-tls-client-profile:1.0.0" { ++count } END { print count }')
+            TLSCPS_LIST=$(./apic tls-client-profiles:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "eem-tls-client-profile:1.0.0" { ++count } END { print count }')
             
             if [[ -z $TLSCPS_LIST ]]; then 
                 echo "Creating TLS Client Profile for EEM Gateway Service..."
-                ./apic tls-client-profiles:create --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-tls-client-profile.json
+                ./apic tls-client-profiles:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --format json eem-apic-tls-client-profile.json
             else
                 echo "TLS Client Profile for EEM Gateway Service already exists."
             fi
@@ -2118,7 +2127,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2", "CD"]
+          values: ["CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2386,12 +2395,12 @@ spec:
 
             SUB_VER="${SUB_VER%.*}"
 
-            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-              echo "Adding suffix to Subscription version for SC2 release"
-              SUB_EXT="-sc2"
-            else
+            #if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+            #  echo "Adding suffix to Subscription version for SC2 release"
+            #  SUB_EXT="-sc2"
+            #else
               SUB_EXT=""
-            fi
+            #fi
 
             ( echo "cat <<EOF" ; cat subscriptions/07-app-connect-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
@@ -2455,7 +2464,7 @@ spec:
 
             echo "Preparing ace dashboard instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/06-ace-dashboard-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/06-ace-dashboard-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_VER=${INST_VER} \
                 INST_LIC=${INST_LIC} \
@@ -2696,7 +2705,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2", "CD"]
+          values: ["CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3222,7 +3231,7 @@ spec:
 
             cd workspace/cp4i-ws
 
-            ./apic --accept-license --live-help=false
+            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
 
             APIC_INST_NAME='apim-demo'
 
@@ -3244,9 +3253,9 @@ spec:
 
             echo "Login to APIC with CMC Admin User..."
 
-            ./apic client-creds:clear
+            ./apic client-creds:clear --insecure-skip-tls-verify
 
-            ./apic login --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
 
             echo "Registering the event gateway..."
 
@@ -3254,13 +3263,13 @@ spec:
 
             EEM_GATEWAY_RT_HOST=$(oc get route $EEM_GATEWAY_INST_NAME-ibm-egw-rt -n $(params.CP4I_NAMESPACE) --template='{{ .spec.host }}')
 
-            APIC_INST_NAME_TLS_CLIENT_PROFILE_URL=$(./apic tls-client-profiles:list-all --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG  | grep eem-tls-client-profile | awk '{print$2}')
+            APIC_INST_NAME_TLS_CLIENT_PROFILE_URL=$(./apic tls-client-profiles:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG  | grep eem-tls-client-profile | awk '{print$2}')
 
-            DEFAULT_TLS_SERVER_PROFILE_URL=$(./apic tls-server-profiles:list-all --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | grep tls-server-profile-default | awk '{print$2}')
+            DEFAULT_TLS_SERVER_PROFILE_URL=$(./apic tls-server-profiles:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | grep tls-server-profile-default | awk '{print$2}')
 
             echo "Getting event-gateway service integration_url..."
 
-            INTEGRATION_URL=$(./apic integrations:get event-gateway --subcollection gateway-service --server $APIC_MGMT_SERVER --format json --fields url | awk '{print$3}')
+            INTEGRATION_URL=$(./apic integrations:get event-gateway --subcollection gateway-service --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --format json --fields url | awk '{print$3}')
 
             ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-eem-apic-event-gateway.json ;) | \
                 EEM_MANAGER_APIC_HOST=${EEM_MANAGER_APIC_HOST} \
@@ -3270,11 +3279,11 @@ spec:
                 INTEGRATION_URL=${INTEGRATION_URL} \
                 sh > eem-apic-event-gateway.json
 
-            GTWYSVCS_LIST=$(./apic gateway-services:list --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+            GTWYSVCS_LIST=$(./apic gateway-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
             
             if [[ -z $GTWYSVCS_LIST ]]; then 
                 echo "Creating Gateway Service for EEM..."
-                ./apic gateway-services:create --server $APIC_MGMT_SERVER --availability-zone $APIC_AVAILABILITY_ZONE --org $APIC_ADMIN_ORG --format json eem-apic-event-gateway.json
+                ./apic gateway-services:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --availability-zone $APIC_AVAILABILITY_ZONE --org $APIC_ADMIN_ORG --format json eem-apic-event-gateway.json
             else
                 echo "Gateway Service for EEM already exists."
             fi
@@ -3290,7 +3299,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2", "CD"]
+          values: ["CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
