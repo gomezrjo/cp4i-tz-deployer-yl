@@ -1270,7 +1270,7 @@ spec:
             echo "Confirming APIC Operator is ready"
 
             while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
-            csv/$SUB_NAME -n $NS_NAME 2>/dev/null; do sleep 30; done
+            csv/$SUB_NAME -n $(params.CP4I_NAMESPACE) 2>/dev/null; do sleep 30; done
             
             echo "Preparing apic instance manifest"
 
