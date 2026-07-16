@@ -1189,18 +1189,18 @@ spec:
                         
             OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml)
 
-            OP_REL="${OP_REL%????????????}"
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Removing suffix to Subscription version for SC2 release"
+              OP_REL="${OP_REL%????????????}"
+            fi
 
-            SUB_VER="${OP_REL##*-}"
+            OP_REL="-${OP_REL##*-}"
+
+            SUB_VER="${OP_REL:1}"
 
             SUB_VER="${SUB_VER%.*}"
 
-            #if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-            #  echo "Adding suffix to Subscription version for SC2 release"
-            #  SUB_EXT="-sc2"
-            #else
-              SUB_EXT=""
-            #fi
+            SUB_EXT=""
 
             ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
               SUB_VER=${SUB_VER} \
