@@ -540,7 +540,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260630-001"
+            REPO_SIGNATURE="JGR-20260716-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -3974,7 +3974,16 @@ spec:
 
             echo "Checking Event Gateway configuration for EEM integration"
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
@@ -3994,11 +4003,11 @@ spec:
 
             echo "Login to APIC with CMC Admin User..."
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
 
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
 
-            GTWYSVCS_LIST=$(./apic gateway-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+            GTWYSVCS_LIST=$(./apic gateway-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG --availability-zone $APIC_AVAILABILITY_ZONE | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
             
             if [[ -z $GTWYSVCS_LIST ]]; then 
                 echo "Gateway Service for EEM was not configured in APIC"
@@ -4056,7 +4065,15 @@ spec:
 
             echo "Checking API Gateway configuration for WatsonX"
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
@@ -4074,13 +4091,13 @@ spec:
 
             echo "Login to APIC with CMC Admin User..."
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
 
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
 
-            KEYS_LIST=$(./apic keystores:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-keystore" { ++count } END { print count }')
+            KEYS_LIST=$(./apic keystores:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-keystore" { ++count } END { print count }')
             
-            TLS_SP_LIST=$(./apic tls-server-profiles:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-tls-server-profile:1.0.0" { ++count } END { print count }')
+            TLS_SP_LIST=$(./apic tls-server-profiles:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG | awk '$1 == "ea-watsonx-tls-server-profile:1.0.0" { ++count } END { print count }')
 
             if [[ -z $KEYS_LIST ]] || [[ -z $TLS_SP_LIST ]]; then
                 echo "API Gateway was not configured for WatsonX"
@@ -4140,7 +4157,15 @@ spec:
 
             echo "Publising APIs in Draft mode..."
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             if [[ "$(params.VERBOSE)" == "true" ]]; then
                 echo "Setting apic variables"
@@ -4156,9 +4181,9 @@ spec:
                 echo "Login to APIC with CP4I Admin User using API Key..."
             fi
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
             
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
             
             if [ $? -eq 0 ]; then
                 if [[ "$(params.VERBOSE)" == "true" ]]; then
@@ -4221,13 +4246,13 @@ spec:
                     echo "Publishing RES API and Product in Draft mode..."
                 fi
 
-                DPROD=$(./apic draft-products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
+                DPROD=$(./apic draft-products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
 
                 if [[ -z $DPROD ]]; then
                     if [[ "$(params.VERBOSE)" == "true" ]]; then
                         echo "Invoking APIC CLI"
                     fi
-                    ./apic draft-products:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
+                    ./apic draft-products:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
                 else
                     if [[ "$(params.VERBOSE)" == "true" ]]; then
                         echo "Product jgrmqapi-product:1.2.0 already exists."
@@ -4239,12 +4264,12 @@ spec:
                         if [[ "$(params.VERBOSE)" == "true" ]]; then
                             echo "Publishing WatsonX API and Product in Draft mode..."
                         fi
-                        DPROD=$(./apic draft-products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')        
+                        DPROD=$(./apic draft-products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')        
                         if [[ -z $DPROD ]]; then
                             if [[ "$(params.VERBOSE)" == "true" ]]; then
                                 echo "Invoking APIC CLI"
                             fi
-                            ./apic draft-products:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
+                            ./apic draft-products:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
                         else
                             if [[ "$(params.VERBOSE)" == "true" ]]; then
                                 echo "Product watsonx-product:1.0.0 already exists."
@@ -4277,12 +4302,12 @@ spec:
                             if [[ "$(params.VERBOSE)" == "true" ]]; then
                                 echo "Publishing AsyncAPI and Product in Draft mode..."
                             fi
-                            DPROD=$(./apic draft-products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')        
+                            DPROD=$(./apic draft-products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')        
                             if [[ -z $DPROD ]]; then
                                 if [[ "$(params.VERBOSE)" == "true" ]]; then 
                                     echo "Invoking APIC CLI"
                                 fi
-                                ./apic draft-products:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
+                                ./apic draft-products:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
                             else
                                 if [[ "$(params.VERBOSE)" == "true" ]]; then
                                     echo "Product jgrasyncapi-product:1.0.0 already exists."
@@ -4360,7 +4385,15 @@ spec:
 
             echo "Configuring Catalogs..."
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
@@ -4384,21 +4417,21 @@ spec:
 
             echo "Login to APIC with CP4I Admin User using API Key..."
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
             
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
             if [ $? -eq 0 ]; then            
                 echo "Getting Values to Publish REST API..."
                 echo "Getting Portal URL..."                
                 #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                    APIC_PORTAL_URL=$(./apic portal-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
+                    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
                 #else
-                #    APIC_PORTAL_URL=$(./apic portal-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
+                #    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
                 #fi
 
                 echo "Getting Sandbox Catalog definition..."
-                ./apic catalogs:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --format json $APIC_CATALOG
+                ./apic catalogs:get $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --format json $APIC_CATALOG
                 jq --arg CATALOG_NAME $CATALOG_NAME \
                   --arg CATALOG_TITLE $CATALOG_TITLE \
                   --arg CATALOG_SUMMARY "$CATALOG_SUMMARY" \
@@ -4409,17 +4442,17 @@ spec:
                   sandbox.json > demo.json
                 
                 echo "Checking if Demo Catalog already exists..."
-                CATALOGS=$(./apic catalogs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { ++count } END { print count }')
+                CATALOGS=$(./apic catalogs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { ++count } END { print count }')
                 if [[ -z $CATALOGS ]]; then 
                     echo "Creating Demo Catalog..."
-                    CATALOG_URL=$(./apic catalogs:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG demo.json | awk '{print $2}')
+                    CATALOG_URL=$(./apic catalogs:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG demo.json | awk '{print $2}')
                 else
                     echo "Demo Catalog already exists."
-                    CATALOG_URL=$(./apic catalogs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { print $2 }')
+                    CATALOG_URL=$(./apic catalogs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname=$CATALOG_NAME '$1 == catname { print $2 }')
                 fi
                 
                 echo "Getting Demo Catalog Settings..."
-                ./apic catalog-settings:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --format json
+                ./apic catalog-settings:get $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --format json
                 
                 echo "Updating Catalog Settings File..."
                 jq --arg PORTAL_URL $APIC_PORTAL_URL \
@@ -4431,21 +4464,21 @@ spec:
                   catalog-setting.json > catalog-setting-demo.json
                 
                 echo "Enabling Portal in Catalog Demo..."
-                ./apic catalog-settings:update --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME catalog-setting-demo.json
-                PRODLIST=$(./apic products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
+                ./apic catalog-settings:update $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME catalog-setting-demo.json
+                PRODLIST=$(./apic products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrmqapi-product:1.2.0" { ++count } END { print count }')
                 if [[ -z $PRODLIST ]]; then
                     echo "Publishing Product with Rest API in Demo Catalog..."
-                    ./apic products:publish --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
+                    ./apic products:publish $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/05-jgr-mqapi-product.yaml
                 else
                     echo "jgrmqapi-product:1.2.0 already exists."
                 fi
 
                 if [[ "$(params.EA_WATSONX)" == "true" ]]; then
                     if [[ "$(tasks.apic-validate-watsonx-config.results.output)" == "true" ]]; then
-                        PRODLIST=$(./apic products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')
+                        PRODLIST=$(./apic products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "watsonx-product:1.0.0" { ++count } END { print count }')
                         if [[ -z $PRODLIST ]]; then
                             echo "Publishing Product with WatsonX API in Demo Catalog..."
-                            ./apic products:publish --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
+                            ./apic products:publish $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/15-watsonx-ea-product.yaml
                         else
                             echo "watsonx-product:1.0.0 already exists."
                         fi
@@ -4460,7 +4493,7 @@ spec:
                       [[ ! -z "$(oc get eventstreams es-demo -n $(params.ES_NAMESPACE) --no-headers --ignore-not-found)" ]] &&
                       [[ "$(tasks.apic-validate-eem-gtwy-config.results.output)" == "true" ]]; then 
                         echo "Updating Catalogs with EEM Gateway..."
-                        ./apic gateway-services:get --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --availability-zone $APIC_AVAILABILITY_ZONE --scope org --format json eem-gateway-service
+                        ./apic gateway-services:get $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --availability-zone $APIC_AVAILABILITY_ZONE --scope org --format json eem-gateway-service
                         GATEWAY_SERVICE_NAME=$(jq -r '.name' "eem-gateway-service.json")
                         GATEWAY_SERVICE_URL=$(jq -r '.url' "eem-gateway-service.json")
                         GATEWAY_SERVICE_TYPE=$(jq -r '.gateway_service_type' "eem-gateway-service.json")
@@ -4470,32 +4503,32 @@ spec:
                             GATEWAY_SERVICE_TYPE=${GATEWAY_SERVICE_TYPE} \
                             sh > apic-configured-gateway-service.yaml          
                         echo "Catalog " $APIC_CATALOG
-                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
                         
                         if [[ -z $EEM_GTWY_SVC ]]; then
-                            ./apic configured-gateway-services:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog apic-configured-gateway-service.yaml
+                            ./apic configured-gateway-services:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $APIC_CATALOG --scope catalog apic-configured-gateway-service.yaml
                         else
                             echo "eem-gateway-service already created in catalog " $APIC_CATALOG
                         fi
 
                         echo "Catalog " $CATALOG_NAME
 
-                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
+                        EEM_GTWY_SVC=$(./apic configured-gateway-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "eem-gateway-service" { ++count } END { print count }')
                         
                         if [[ -z $EEM_GTWY_SVC ]]; then
-                            ./apic configured-gateway-services:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog apic-configured-gateway-service.yaml
+                            ./apic configured-gateway-services:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog apic-configured-gateway-service.yaml
                         else
                             echo "eem-gateway-service already created in catalog " $CATALOG_NAME
                         fi
 
-                        PRODLIST=$(./apic products:list-all --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')
+                        PRODLIST=$(./apic products:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --scope catalog | awk '$1 == "jgrasyncapi-product:1.0.0" { ++count } END { print count }')
                         
                         if [[ -z $PRODLIST ]]; then
                             if [[ -f cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]] &&
                               [[ -s cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]]; then 
                                 echo "Publishing Product with AsyncAPI in Demo Catalog..."
-                                ./apic products:publish --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
-                                ./apic products:get --scope catalog --format json --output cp4i-deployer-helper/artifacts --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product:1.0.0
+                                ./apic products:publish $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME cp4i-deployer-helper/resources/06-jgr-asyncapi-product.yaml
+                                ./apic products:get --scope catalog --format json --output cp4i-deployer-helper/artifacts $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product:1.0.0
                             else
                                 echo "Cannot publish Product for AsyncAPI because file does not exist or it is empty."
                             fi
@@ -4564,7 +4597,15 @@ spec:
 
             echo "Creating Consumer Organization..."
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
@@ -4584,11 +4625,11 @@ spec:
 
             echo "Login to APIC with CP4I Admin User using API Key..."
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
             
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
-            APIC_RESP=$(./apic orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER)
+            APIC_RESP=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER)
 
             echo "APIC ORGS:LIST -> $APIC_RESP"
 
@@ -4598,13 +4639,13 @@ spec:
             #    PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
             #fi      
 
-            APIC_RESP=$(./apic user-registries:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG)
+            APIC_RESP=$(./apic user-registries:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG)
 
             echo "APIC USER_REGISTRY:LIST -> $APIC_RESP"
 
             USER_REGISTRY_URL=$(echo "$APIC_RESP" | awk -v catname="${CATALOG_NAME}-catalog" '$1 == catname {print $2}')
 
-            APIC_RESP=$(./apic catalogs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG)
+            APIC_RESP=$(./apic catalogs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG)
 
             echo "APIC CATALOGS:LIST -> $APIC_RESP"
 
@@ -4642,7 +4683,7 @@ spec:
                 USER_REGISTRY_URL=${USER_REGISTRY_URL} \
                 sh > consumer-org-user.json
 
-            APIC_RESP=$(./apic users:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
+            APIC_RESP=$(./apic users:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
 
             echo "APIC USERS:LIST -> $APIC_RESP"
 
@@ -4650,7 +4691,7 @@ spec:
 
             if [[ -z $CORG_USER ]]; then
                 echo "Creating Consumer Org User"
-                APIC_RESP=$(./apic users:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json)
+                APIC_RESP=$(./apic users:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog consumer-org-user.json)
                 echo "APIC USERS:CREATE -> $APIC_RESP"
                 #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
                     OWNER_URL=$(echo "$APIC_RESP" | awk '{print $3}')
@@ -4659,7 +4700,7 @@ spec:
                 #fi 
             else
                 echo "Consumer Org User andre already exists."
-                APIC_RESP=$(./apic users:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
+                APIC_RESP=$(./apic users:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --user-registry ${CATALOG_NAME}-catalog)
                 echo "APIC USERS:LIST -> $APIC_RESP"
                 #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
                     OWNER_URL=$(echo "$APIC_RESP" | awk '$1 == "andre" {print $3}')
@@ -4677,7 +4718,7 @@ spec:
                 CATALOG_URL=${CATALOG_URL} \
                 sh > consumer-org.json
 
-            APIC_RESP=$(./apic consumer-orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME)
+            APIC_RESP=$(./apic consumer-orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME)
 
             echo "APIC CONSUMER-ORG:LIST -> $APIC_RESP"
 
@@ -4685,7 +4726,7 @@ spec:
 
             if [[ -z $CORG_LIST ]]; then
                 echo "Creating Consumer Org..."
-                ./apic consumer-orgs:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME consumer-org.json
+                ./apic consumer-orgs:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME consumer-org.json
             else
                 echo "Consumer Org AppDevOrg already exists."
             fi
@@ -4748,7 +4789,15 @@ spec:
 
             echo "Creating Apps and Subscription..."
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
@@ -4764,24 +4813,24 @@ spec:
 
             echo "Login to APIC with CP4I Admin User using API Key..."
 
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
             
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
             #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then
-                PORG_URL=$(./apic orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+                PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
             #else
-            #    PORG_URL=$(./apic orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')     
+            #    PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')     
             #fi 
 
-            CATALOG_URL=$(./apic catalogs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
+            CATALOG_URL=$(./apic catalogs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
 
             #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                CONSUMER_ORG_URL=$(./apic consumer-orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $3}')
-                PRODUCT_URL=$(./apic products:list --scope catalog --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $3}')
+                CONSUMER_ORG_URL=$(./apic consumer-orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $3}')
+                PRODUCT_URL=$(./apic products:list --scope catalog $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $3}')
             #else
-            #    CONSUMER_ORG_URL=$(./apic consumer-orgs:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $4}')
-            #    PRODUCT_URL=$(./apic products:list --scope catalog --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $4}')
+            #    CONSUMER_ORG_URL=$(./apic consumer-orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME | awk -v corgname="${CONSUMER_ORG_NAME}" '$1 == corgname {print $4}')
+            #    PRODUCT_URL=$(./apic products:list --scope catalog $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrasyncapi-product | awk '{print $4}')
             #fi 
 
             echo "Preparing App File"
@@ -4796,11 +4845,11 @@ spec:
                 CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
                 sh > demo-app.json
 
-            APPS_LIST=$(./apic apps:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk -v appname=$APP_NAME '$1 == appname { ++count } END { print count }')
+            APPS_LIST=$(./apic apps:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk -v appname=$APP_NAME '$1 == appname { ++count } END { print count }')
             
             if [[ -z $APPS_LIST ]]; then
                 echo "Creating Demo App for Consumer Org in Catalog Demo..."
-                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME demo-app.json
+                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME demo-app.json
             else
                 echo "Demo App for Consumer Org in Catalog Demo already exists."
             fi
@@ -4815,11 +4864,11 @@ spec:
                 CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
                 sh > dflt-app.json
 
-            APPS_LIST=$(./apic apps:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk '$1 == "CP4I-Dflt-App" { ++count } END { print count }')
+            APPS_LIST=$(./apic apps:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk '$1 == "CP4I-Dflt-App" { ++count } END { print count }')
             
             if [[ -z $APPS_LIST ]]; then
                 echo "Creating Dflt App for Consumer Org in Catalog Demo..."
-                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME dflt-app.json
+                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME dflt-app.json
             else
                 echo "Dflt App for Consumer Org in Catalog Demo already exists."
             fi
@@ -4832,11 +4881,11 @@ spec:
                 CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
                 sh > prem-app.json
 
-            APPS_LIST=$(./apic apps:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk '$1 == "CP4I-Prem-App" { ++count } END { print count }')
+            APPS_LIST=$(./apic apps:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME | awk '$1 == "CP4I-Prem-App" { ++count } END { print count }')
             
             if [[ -z $APPS_LIST ]]; then
                 echo "Creating Prem App for Consumer Org in Catalog Demo..."
-                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME prem-app.json
+                ./apic apps:create --format json --output cp4i-deployer-helper/artifacts $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME prem-app.json
             else
                 echo "Prem App for Consumer Org in Catalog Demo already exists."
             fi
@@ -4860,13 +4909,13 @@ spec:
                         CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
                         APP_URL=${APP_URL} \
                         sh > subscription.json
-                    SUBS_LIST=$(./apic subscriptions:list --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME | awk '{ ++count } END { print count }')
+                    SUBS_LIST=$(./apic subscriptions:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME | awk '{ ++count } END { print count }')
                     
                     if [[ -z $APPS_LIST ]]; then
                         if [[ -f cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]] &&
                            [[ -s cp4i-deployer-helper/artifacts/cp4i-es-demo-topic.yaml ]]; then
                             echo "Creating Subscription for Default Plan in AsyncAPI."
-                            ./apic subscriptions:create --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME subscription.json
+                            ./apic subscriptions:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME subscription.json
                         else
                             echo "Cannot create subscription for Default Plan in AsyncAPI because file does not exists or it is empty."
                         fi
@@ -4930,6 +4979,14 @@ spec:
             
             cd workspace/cp4i-ws
 
+            echo "Setting flag for apic cli."
+
+            APIC_CLI_FLAG=""
+
+            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+                APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            fi
+
             echo "Setting apic variables"
 
             APIC_INST_NAME='apim-demo'
@@ -4940,13 +4997,13 @@ spec:
             
             APIC_ANALYTICS_SERVICE='analytics-service'
 
-            ./apic --accept-license --live-help=false --insecure-skip-tls-verify
+            ./apic --accept-license --live-help=false $APIC_CLI_FLAG
             
             echo "Login to APIC with CP4I Admin User using API Key..."
             
-            ./apic client-creds:clear --insecure-skip-tls-verify
+            ./apic client-creds:clear $APIC_CLI_FLAG
             
-            ./apic login --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
             if [[ -z $(oc get deployment ibm-appconnect-operator -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}') ]]; then 
                 echo "Skipping APIC configuration with ACE, App Connect Operator was not installed."
@@ -5001,7 +5058,7 @@ spec:
                 ACE_INST_NAME='jgr-apic-engagement'
                 API_PATH='/jgr-apic-engagement/message'
                 DESTINATION_URL=$(oc get integrationruntime $ACE_INST_NAME -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="http endpoint")].uri}')$API_PATH
-                ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output . 
+                ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output . 
                 cat DestinationsListResponse.json
                 APIC_ENG_DEST_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)            
                 if [ -z "$APIC_ENG_DEST_ID" ]; then
@@ -5014,22 +5071,22 @@ spec:
                         sh > apic-engagement-destination.yaml
                     cat apic-engagement-destination.yaml
                     echo "Creating Destination..." 
-                    ./apic -m engagement destinations:orgCreate --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --debug apic-engagement-destination.yaml
+                    ./apic -m engagement destinations:orgCreate $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --debug apic-engagement-destination.yaml
                 else
                     echo "APIC Engagement Destination already exists."
                 fi
                 ls -l 
                 rm -f DestinationsListResponse.json
-                ./apic -m engagement rules:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
+                ./apic -m engagement rules:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
                 cat RulesListResponse.json
                 APIC_ENG_RULE_ID=$(jq -r --arg RULE_NAME "$RULE_NAME" '.rules[] | select(.title==$RULE_NAME) | .id' RulesListResponse.json)
                 if [ -z "$APIC_ENG_RULE_ID" ]; then
-                    ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
+                    ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
                     ls -l 
                     cat DestinationsListResponse.json
                     rm -f DestinationsListResponse.json
                     ls -l
-                    ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
+                    ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
                     ls -l
                     cat DestinationsListResponse.json
                     DESTINATION_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)
@@ -5042,7 +5099,7 @@ spec:
                         ACTION_MSG=${ACTION_MSG} \
                         sh > apic-engagement-rule.yaml
                     echo "Creating Rule..."
-                    ./apic -m engagement rules:orgCreate --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-rule.yaml
+                    ./apic -m engagement rules:orgCreate $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-rule.yaml
                 else
                     echo "APIC Engagement Rule already exists."
                 fi
@@ -5075,7 +5132,7 @@ spec:
                             ACTION_MSG='{"records":[{"key":"apic-engagement","value":{"message":"APIs failing with 40x","alert":123,"action":"Attention needed."}}]}'
                             API_PATH='/topics/apic-engagement-topic'
                             DESTINATION_URL="http://"$(oc get route $ES_BRIDGE_NAME -n $(params.ES_NAMESPACE) --ignore-not-found -o jsonpath='{.status.ingress[0].host}')$API_PATH
-                            ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
+                            ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
                             cat DestinationsListResponse.json
                             APIC_ENG_DEST_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)
                             if [ -z "$APIC_ENG_DEST_ID" ]
@@ -5088,23 +5145,23 @@ spec:
                                     DEST_WHP_VALUE=${DEST_WHP_VALUE} \
                                     sh > apic-engagement-destination.yaml
                                 echo "Creating Destination..." 
-                                ./apic -m engagement destinations:orgCreate --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-destination.yaml
+                                ./apic -m engagement destinations:orgCreate $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-destination.yaml
                             else
                                 echo "APIC Engagement Destination already exists."
                             fi
                             ls -l 
                             rm -f DestinationsListResponse.json
-                            ./apic -m engagement rules:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
+                            ./apic -m engagement rules:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
                             cat RulesListResponse.json                            
                             APIC_ENG_RULE_ID=$(jq -r --arg RULE_NAME "$RULE_NAME" '.rules[] | select(.title==$RULE_NAME) | .id' RulesListResponse.json)
                             if [ -z "$APIC_ENG_RULE_ID" ]
                             then
-                                ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
+                                ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
                                 ls -l 
                                 cat DestinationsListResponse.json
                                 rm -f DestinationsListResponse.json
                                 ls -l
-                                ./apic -m engagement destinations:orgList --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
+                                ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --debug --output .
                                 ls -l
                                 cat DestinationsListResponse.json
                                 DESTINATION_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)
@@ -5117,7 +5174,7 @@ spec:
                                     ACTION_MSG=${ACTION_MSG} \
                                     sh > apic-engagement-rule.yaml
                                 echo "Creating Rule..."
-                                ./apic -m engagement rules:orgCreate --insecure-skip-tls-verify --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-rule.yaml
+                                ./apic -m engagement rules:orgCreate $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE apic-engagement-rule.yaml
                             else
                                 echo "APIC Engagement Rule already exists."
                             fi
