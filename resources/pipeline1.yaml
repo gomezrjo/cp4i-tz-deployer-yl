@@ -3285,7 +3285,7 @@ spec:
 
             EEM_MANAGER_APIC_HOST=$(oc get route $EEM_MANAGER_INST_NAME-ibm-eem-apic -n $(params.CP4I_NAMESPACE) --template='{{ .spec.host }}')
 
-            EEM_GATEWAY_RT_HOST=$(oc get route $EEM_GATEWAY_INST_NAME-ibm-egw-rt -n $(params.CP4I_NAMESPACE) --template='{{ .spec.host }}')
+            EEM_GATEWAY_RT_HOST=$(oc get route $EEM_GATEWAY_INST_NAME-ibm-egw-rt -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.ingress[?(@.routerName=="default")].host}')
 
             APIC_INST_NAME_TLS_CLIENT_PROFILE_URL=$(./apic tls-client-profiles:list-all $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ADMIN_ORG  | grep eem-tls-client-profile | awk '{print$2}')
 
