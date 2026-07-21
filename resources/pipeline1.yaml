@@ -336,7 +336,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260716-001"
+            REPO_SIGNATURE="JGR-20260720-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -1316,8 +1316,10 @@ spec:
 
             echo "Deploying apic instance"
 
-            oc apply -f apic-instance.yaml -n
-            $(params.CP4I_NAMESPACE)
+            until oc apply -f apic-instance.yaml -n $(params.CP4I_NAMESPACE); do
+                echo "Command oc apply failed. Retrying in 5 seconds..."
+                sleep 5
+            done
 
             echo "Waiting for apic instance to be ready..."
 
