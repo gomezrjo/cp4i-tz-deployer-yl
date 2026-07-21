@@ -1,6 +1,6 @@
 # cp4i-tz-deployer-yl
 
-This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.1.0 for LTS/SC2 and v16.1.3 for CD) based on the CP4I end-to-end demo assets.
+This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.2.0 for LTS/SC2 and v16.1.3 for CD) based on the CP4I end-to-end demo assets.
 
 This repo does not include the extra elements like Instana and Logging, but the core CP4I capabilities and License Service are included now.
 
@@ -45,7 +45,7 @@ Once you confirm the cluster meets all the requirements, execute the following c
    oc apply -f resources/pipeline1.yaml
    ```
 
-Then decide if you want to install CP4I v16.1.0 or v16.1.3 and execute the corresponding command.
+Then decide if you want to install CP4I v16.2.0 or v16.1.3 and execute the corresponding command.
 
 <details>
 <summary>
@@ -63,7 +63,7 @@ tkn pipeline start cp4i-demo \
 </details>
 <details>
 <summary>
-CP4I v16.1.0
+CP4I v16.2.0
 </summary>
 
 ```
