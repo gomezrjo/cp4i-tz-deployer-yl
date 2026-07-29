@@ -227,6 +227,10 @@ spec:
       default: 'true'
       description: Deploy Asset repository operator
       type: string
+    - name: DEPLOY_INTEGRATION_MONITORING_OPERATOR
+      default: 'true'
+      description: Deploy Integration Monitoring operator
+      type: string
     - name: DEPLOY_DATAPOWER_GATEWAY_OPERATOR
       default: 'true'
       description: Deploy DataPower Gateway operator
@@ -273,6 +277,10 @@ spec:
     - name: DEPLOY_ASSET_REPO
       default: 'true'
       description: Deploy asset repo
+      type: string
+    - name: DEPLOY_INTEGRATION_MONITOR
+      default: 'true'
+      description: Deploy Integration Monitor
       type: string
     - name: DEPLOY_API_CONNECT
       default: 'true'
@@ -336,7 +344,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260720-001"
+            REPO_SIGNATURE="JGR-20260727-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -1088,6 +1096,224 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
+    - name: e2e-monitoring-operator-installation
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Enabling integration monitoring catalog source"
+
+            oc apply -f catalog-sources/$(params.CP4I_VERSION)/16-integration-monitoring-catalog-source.yaml
+
+            echo "Waiting for integration monitoring catalog source to be ready..."
+            
+            while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
+            catalogsources/ibm-integration-monitoring-catalog -n 
+            openshift-marketplace 2>/dev/null; do sleep 30; done
+
+            echo "Integration monitoring catalog source is ready"
+
+            echo "Preparing integration monitoring operator manifest"
+            
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/16-integration-monitoring-catalog-source.yaml)
+
+            OP_REL="${OP_REL%????????????}"
+
+            SUB_VER="${OP_REL##*-}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/12-integration-monitoring-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 12-integration-monitoring-subscription.yaml
+
+            echo "Installing integration monitoring operator"
+            
+            oc apply -f 12-integration-monitoring-subscription.yaml
+
+            echo "Getting operator version..."
+            
+            SUB_NAME=''
+            
+            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment ibm-e2em-operator-e2em-controller-manager -n openshift-operators --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
+
+            echo "Operator: " $SUB_NAME
+
+            echo "Waiting for integration monitoring operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
+            csv/$SUB_NAME 2>/dev/null; do sleep 30; done            
+
+            echo "Integration Monitoring operator is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - asset-repository-instance-deployment
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(params.CP4I_VERSION)"
+          operator: in
+          values: ["SC2"]
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_INTEGRATION_MONITORING_OPERATOR)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: e2e-monitoring-instance-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            INST_NAME="e2e-monitoring"
+
+            echo "Getting info from CSV..."
+
+            SUB_NAME=$(oc get deployment ibm-e2em-operator-e2em-controller-manager -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
+
+            INST_VER=$(oc get csv $SUB_NAME -n openshift-operators -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "Monitoring")] | .[] | select(.metadata.name == "01-e2em-small") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -n openshift-operators -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "Monitoring")] | .[] | select(.metadata.name == "01-e2em-small") | .spec.license.license')
+
+            echo "Preparing integration monitor instance manifest"
+
+            (echo "cat <<EOF" ; cat instances/27-integration-monitoring-instance.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_LIC=${INST_LIC} \
+                INST_VER=${INST_VER} \
+                OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
+                sh > integration-monitoring-instance.yaml
+
+            echo "Deploying integration monitor instance"
+
+            oc apply -f integration-monitoring-instance.yaml -n
+            $(params.CP4I_NAMESPACE)
+
+            echo "Waiting for integration monitor instance to be ready..."
+
+            while ! oc wait --for=condition=Ready
+            Monitoring/e2e-monitoring -n
+            $(params.CP4I_NAMESPACE) 2>/dev/null; do sleep 30; done
+
+            echo "Integration Monitoring instance is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - e2e-monitoring-operator-installation
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(params.CP4I_VERSION)"
+          operator: in
+          values: ["SC2"]
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_INTEGRATION_MONITORING_OPERATOR)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_INTEGRATION_MONITOR)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_PLATFORM_UI)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: e2e-monitoring-security-configuration
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            E2EM_SVC_ACCT='e2em'
+
+            E2EM_SECRET_NAME="$E2EM_SVC_ACCT"
+
+            E2EM_CONFIGMAP="$E2EM_SVC_ACCT-ca"
+
+            echo "Preparing E2EM Service Account manifest..."
+            
+            (echo "cat <<EOF" ; cat resources/17a-integration-monitoring-service-account.yaml ;) | \
+                E2EM_SVC_ACCT=${E2EM_SVC_ACCT} \
+                sh > integration-monitoring-service-account.yaml
+
+            echo "Creating E2EM Service Account..."
+
+            oc apply -f integration-monitoring-service-account.yaml -n $(params.CP4I_NAMESPACE)
+
+            echo "Preparing E2EM Role Binding manifest..."
+
+            (echo "cat <<EOF" ; cat resources/17b-integration-monitoring-role-binding.yaml ;) | \
+                E2EM_SVC_ACCT=${E2EM_SVC_ACCT} \
+                E2EM_NAMESPACE=$(params.CP4I_NAMESPACE) \
+                sh > integration-monitoring-role-binding.yaml
+
+            echo "Creating E2EM Role Binding..."
+
+            oc apply -f integration-monitoring-role-binding.yaml -n $(params.CP4I_NAMESPACE)
+
+            echo  "Preparing E2EM Secret manifest..."
+            
+            (echo "cat <<EOF" ; cat resources/17c-integration-monitoring-secret.yaml ;) | \
+                E2EM_SECRET_NAME=${E2EM_SECRET_NAME} \
+                E2EM_SVC_ACCT=${E2EM_SVC_ACCT} \
+                sh > integration-monitoring-secret.yaml
+
+            echo "Creating E2EM Secret..."
+
+            oc apply -f integration-monitoring-secret.yaml -n $(params.CP4I_NAMESPACE)
+
+            if [[ -z "$(oc get configmap $E2EM_CONFIGMAP -n $(params.CP4I_NAMESPACE) --no-headers --ignore-not-found)" ]]; then
+                echo "Creating E2EM ConfigMap for CA Cert..."
+                oc create configmap $E2EM_CONFIGMAP -n $(params.CP4I_NAMESPACE)
+                oc annotate configmap $E2EM_CONFIGMAP -n $(params.CP4I_NAMESPACE) service.beta.openshift.io/inject-cabundle=true
+            else
+                echo "ConfigMap $E2EM_CONFIGMAP already exists."
+            fi
+
+            echo "E2EM security has been configured."
+        - name: VERSION
+          value: latest
+      runAfter:
+        - e2e-monitoring-instance-deployment
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(params.CP4I_VERSION)"
+          operator: in
+          values: ["SC2"]
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_INTEGRATION_MONITORING_OPERATOR)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_INTEGRATION_MONITOR)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.DEPLOY_PLATFORM_UI)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
     - name: datapower-operator-installation
       params:
         - name: SCRIPT
@@ -1149,7 +1375,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - asset-repository-instance-deployment
+        - e2e-monitoring-security-configuration
       taskRef:
         kind: Task
         name: jgr-task-0.2
