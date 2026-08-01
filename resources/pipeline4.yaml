@@ -831,10 +831,32 @@ spec:
             openshift-marketplace 2>/dev/null; do sleep 30; done
 
             echo "APIC catalog source is ready"
+            
+            echo "Preparing apic operator manifest"
+                        
+            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml)
+
+            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              echo "Removing suffix to Subscription version for SC2 release"
+              OP_REL="${OP_REL%????????????}"
+            fi
+
+            OP_REL="-${OP_REL##*-}"
+
+            SUB_VER="${OP_REL:1}"
+
+            SUB_VER="${SUB_VER%.*}"
+
+            SUB_EXT=""
+
+            ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
+              SUB_VER=${SUB_VER} \
+              SUB_EXT=${SUB_EXT} \
+              sh > 04-api-connect-subscription.yaml
 
             echo "Installing apic operator"
             
-            oc apply -f subscriptions/04-api-connect-v12-subscription.yaml
+            oc apply -f 04-api-connect-subscription.yaml
 
             echo "Getting operator version..."
             
