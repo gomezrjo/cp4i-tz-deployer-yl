@@ -300,7 +300,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260815-001"
+            REPO_SIGNATURE="JGR-20260831-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -676,6 +676,8 @@ spec:
             echo "Preparing common services operator manifest"
             
             OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/02-common-services-catalog-source.yaml)
+
+            OP_REL="${OP_REL%%+*}"
 
             SUB_VER="${OP_REL##*-}"
 
@@ -2984,9 +2986,15 @@ spec:
               echo "Valkey valkey-secret already exists in namespace $NS_NAME"
             fi
 
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/70c-apic-valkey-standalone-cr.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > apic-valkey-standalone-cr.yaml
+
             echo "Deploying Valkey instance..."
 
-            oc apply -f resources/70c-apic-valkey-standalone-cr.yaml -n $NS_NAME
+            oc apply -f apic-valkey-standalone-cr.yaml -n $NS_NAME
 
             echo "Cleaning up temp file..."
             
@@ -3120,6 +3128,10 @@ spec:
 
             NS_NAME=$(params.APIC_NAMESPACE)
 
+            VALKEY_INST_NAME="valkey"
+
+            VALKEY_NAMESPACE=$(params.APIC_NAMESPACE)
+
             echo "Getting info from CSV..."
 
             SUB_NAME=$(oc get deployment ibm-apiconnect -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
@@ -3141,6 +3153,8 @@ spec:
               INST_VER=${INST_VER} \
               INST_LIC=${INST_LIC} \
               STACK_HOST=${STACK_HOST} \
+              VALKEY_INST_NAME=${VALKEY_INST_NAME} \
+              VALKEY_NAMESPACE=${VALKEY_NAMESPACE} \
               sh > apic-nano-gwy-instance.yaml
 
             echo "Creating Nano Gateway instance..."
