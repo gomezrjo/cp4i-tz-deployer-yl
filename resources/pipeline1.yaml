@@ -344,7 +344,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260805-001"
+            REPO_SIGNATURE="JGR-20260815-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -405,7 +405,7 @@ spec:
 
                 "SC2")
             
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.0.tgz
+                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.2.tgz
             
                     ;;
             
@@ -757,6 +757,8 @@ spec:
             echo "Preparing common services operator manifest"
             
             OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/02-common-services-catalog-source.yaml)
+
+            OP_REL="${OP_REL%%+*}"
 
             SUB_VER="${OP_REL##*-}"
 
@@ -1901,6 +1903,10 @@ spec:
             EventStreams/es-demo -n
             $(params.ES_NAMESPACE)  2>/dev/null; do sleep 30; done
 
+            oc patch configmap cluster-monitoring-config -n openshift-monitoring --type=merge -p '{"data": {"config.yaml": "enableUserWorkload: true\n"}}'
+
+            oc adm policy add-cluster-role-to-user cluster-monitoring-view -z es-demo-ibm-es-admapi -n $(params.ES_NAMESPACE)
+
             echo "Event streams instance is ready"
         - name: VERSION
           value: latest
@@ -2725,6 +2731,17 @@ spec:
             while ! oc wait --for=jsonpath='{.status.phase}'=Ready
             dashboard/ace-dashboard -n
             $(params.ACE_NAMESPACE) 2>/dev/null; do sleep 30; done
+
+            echo "Creating Dashboard Monitor Confg Template..."
+
+            (echo "cat <<EOF" ; cat templates/template-ace-dashboard-monitor-config.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                INST_NS=$(params.ACE_NAMESPACE) \
+                sh > ace-dashboard-monitor-config.yaml
+
+            echo "Configuring ACE Dashboard instance..."
+
+            oc apply -f ace-dashboard-monitor-config.yaml
 
             echo "ACE dashboard instance is ready"
         - name: VERSION

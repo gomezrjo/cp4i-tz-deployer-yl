@@ -540,7 +540,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260805-001"
+            REPO_SIGNATURE="JGR-20260815-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -707,7 +707,7 @@ spec:
             else
                 case "${CP4I_VER_NUM}" in
                     "16.2.0")
-                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.0.tgz
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.2.tgz
                         chmod +x apic
                         CP4I_VER="${CP4I_VER_NUM}"
                         CP4I_VER="SC2"
@@ -4873,6 +4873,10 @@ spec:
                 echo "Dflt App for Consumer Org in Catalog Demo already exists."
             fi
 
+            DFLT_APP_URL=$(jq -r '.url' "cp4i-deployer-helper/artifacts/CP4I-Dflt-App.json")
+        
+            DFLT_APP_CLIENT_ID=$(jq -r '.client_id' "cp4i-deployer-helper/artifacts/CP4I-Dflt-App.json")
+
             ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-app.json ;) | \
                 APP_NAME='CP4I-Prem-App' \
                 APP_TITLE='CP4I Prem App' \
@@ -4889,6 +4893,10 @@ spec:
             else
                 echo "Prem App for Consumer Org in Catalog Demo already exists."
             fi
+
+            PREM_APP_URL=$(jq -r '.url' "cp4i-deployer-helper/artifacts/CP4I-Prem-App.json")
+        
+            PREM_APP_CLIENT_ID=$(jq -r '.client_id' "cp4i-deployer-helper/artifacts/CP4I-Prem-App.json")
 
             if [[ "$(params.EEM_APIC_INT)" == "true" ]] &&
                [[ "$(params.DEPLOY_EVENT_ENDPOINT_MANAGEMENT_DEMOS)" == "true" ]]; then 
@@ -4925,6 +4933,62 @@ spec:
                 fi
             fi
 
+            PRODUCT_URL=$(./apic products:list $APIC_CLI_FLAG --scope catalog --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME jgrmqapi-product | awk '{print $3}')
+
+            echo "Preparing Subscription File"
+
+            APP_NAME='CP4I-Dflt-App'
+            
+            SUBSCRIPTION_NAME=$(uuidgen | awk '{print tolower($0)}')
+            
+            ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-subscription.json ;) | \
+                PLAN_NAME='default-plan' \
+                PLAN_TITLE='Default Plan' \
+                SUBSCRIPTION_NAME=${SUBSCRIPTION_NAME} \
+                PRODUCT_URL=${PRODUCT_URL} \
+                PORG_URL=${PORG_URL} \
+                CATALOG_URL=${CATALOG_URL} \
+                CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
+                APP_URL=${DFLT_APP_URL} \
+                sh > subscription.json
+
+            SUBS_LIST=$(./apic subscriptions:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME | awk '{ ++count } END { print count }')
+            
+            if [ -z $APPS_LIST ]; then
+                echo "Creating Subscription for Default Plan in JGRMQAPI..."
+                ./apic subscriptions:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME subscription.json
+            else
+                echo "Subscription for Default Plan in JGRMQAPI already exists."
+            fi
+            
+            echo "Preparing Subscription File"
+            
+            APP_NAME='CP4I-Prem-App'
+            
+            SUBSCRIPTION_NAME=$(uuidgen | awk '{print tolower($0)}')
+            
+            ( echo "cat <<EOF" ; cat cp4i-deployer-helper/templates/template-apic-subscription.json ;) | \
+                PLAN_NAME='premium-plan' \
+                PLAN_TITLE='Premium Plan' \
+                SUBSCRIPTION_NAME=${SUBSCRIPTION_NAME} \
+                PRODUCT_URL=${PRODUCT_URL} \
+                PORG_URL=${PORG_URL} \
+                CATALOG_URL=${CATALOG_URL} \
+                CONSUMER_ORG_URL=${CONSUMER_ORG_URL} \
+                APP_URL=${DFLT_APP_URL} \
+                sh > subscription.json
+            
+            SUBS_LIST=$(./apic subscriptions:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME | awk '{ ++count } END { print count }')
+            
+            if [ -z $APPS_LIST ]; then
+                echo "Creating Subscription for Premium Plan in JGRMQAPI..."
+                ./apic subscriptions:create $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --catalog $CATALOG_NAME --consumer-org $CONSUMER_ORG_NAME --app $APP_NAME subscription.json
+            else
+                echo "Subscription for Premium Plan in JGRMQAPI already exists."
+            fi
+
+            oc create secret generic jgr-apic-apps-credentials -n default --from-literal=dfltapp="${DFLT_APP_CLIENT_ID}" --from-literal=premapp="${PREM_APP_CLIENT_ID}"
+            
             echo "Apps and Subscription have been created."
         - name: VERSION
           value: latest
@@ -5047,6 +5111,7 @@ spec:
                 integrationruntimes/jgr-apic-engagement -n \
                 $(params.ACE_NAMESPACE)  2>/dev/null; do sleep 30; done
                 echo "Integration Server is deployed"
+                oc apply -f resources/29-ace-is-apic-engagement-route.yaml -n $(params.ACE_NAMESPACE)
                 cd ..            
                 echo "Creating Engagement Destination and Rule ..."
                 DESTINATION_NAME="JGR ACE Destination"
@@ -5057,7 +5122,7 @@ spec:
                 ACTION_MSG='{"email":"user@cp4.demo.net","severity":1,"subject":"APIs failing with 40x.","body":"Attention needed."}'
                 ACE_INST_NAME='jgr-apic-engagement'
                 API_PATH='/jgr-apic-engagement/message'
-                DESTINATION_URL=$(oc get integrationruntime $ACE_INST_NAME -n $(params.ACE_NAMESPACE) --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="http endpoint")].uri}')$API_PATH
+                DESTINATION_URL="https://"$(oc get route $ACE_INST_NAME -n $(params.ACE_NAMESPACE) -o jsonpath='{.status.ingress[0].host}')$API_PATH
                 ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output . 
                 cat DestinationsListResponse.json
                 APIC_ENG_DEST_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)            
@@ -5131,7 +5196,7 @@ spec:
                             ACTION_NAME="Kafka Action"
                             ACTION_MSG='{"records":[{"key":"apic-engagement","value":{"message":"APIs failing with 40x","alert":123,"action":"Attention needed."}}]}'
                             API_PATH='/topics/apic-engagement-topic'
-                            DESTINATION_URL="http://"$(oc get route $ES_BRIDGE_NAME -n $(params.ES_NAMESPACE) --ignore-not-found -o jsonpath='{.status.ingress[0].host}')$API_PATH
+                            DESTINATION_URL="https://"$(oc get route $ES_BRIDGE_NAME -n $(params.ES_NAMESPACE) --ignore-not-found -o jsonpath='{.status.ingress[0].host}')$API_PATH
                             ./apic -m engagement destinations:orgList $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG --analytics-service $APIC_ANALYTICS_SERVICE --format json --output .
                             cat DestinationsListResponse.json
                             APIC_ENG_DEST_ID=$(jq -r --arg DESTINATION_NAME "$DESTINATION_NAME" '.destinations[] | select(.title==$DESTINATION_NAME) | .id' DestinationsListResponse.json)
