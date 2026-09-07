@@ -300,7 +300,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260831-001"
+            REPO_SIGNATURE="JGR-20260904-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -663,31 +663,37 @@ spec:
             
             echo "Enabling common services catalog source"
 
-            oc apply -f catalog-sources/$(params.CP4I_VERSION)/02-common-services-catalog-source.yaml
+            MANIFEST_NAME="02-common-services-catalog-source.yaml"
+
+            CATALOG_NAME="opencloud-operators"
+
+            oc apply -f catalog-sources/$(params.CP4I_VERSION)/$MANIFEST_NAME
             
             echo "Waiting for common services catalog source to be ready..."
 
             while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/opencloud-operators -n 
+            catalogsources/$CATALOG_NAME -n 
             openshift-marketplace 2>/dev/null; do sleep 30; done
 
             echo "Common services catalog source is ready"
 
             echo "Preparing common services operator manifest"
             
-            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/02-common-services-catalog-source.yaml)
+            SUBSCRIPTION_NAME="ibm-common-service-operator"
 
-            OP_REL="${OP_REL%%+*}"
+            echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
 
-            SUB_VER="${OP_REL##*-}"
-
-            SUB_VER="${SUB_VER%.*}"
-
-            SUB_EXT=""
+            while true; do
+              ALT_SUB_VER=$(oc get packagemanifest --selector=catalog=$CATALOG_NAME -o jsonpath="{range .items[?(@.metadata.name=='$SUBSCRIPTION_NAME')]}{.status.defaultChannel}{\"\n\"}{end}")
+              if [ ! -z "$ALT_SUB_VER" ]; then
+                break
+              fi
+              echo "Waiting for 5 second before trying again..."
+              sleep 5
+            done
 
             ( echo "cat <<EOF" ; cat subscriptions/00-common-services-subscription.yaml ;) | \
-              SUB_VER=${SUB_VER} \
-              SUB_EXT=${SUB_EXT} \
+              SUB_VER=${ALT_SUB_VER} \
               sh > 00-common-service-subscription.yaml
 
             echo "Installing common services operator"
@@ -736,43 +742,39 @@ spec:
 
             echo "Enabling datapower catalog source"
 
-            oc apply -f catalog-sources/$(params.CP4I_VERSION)/05-datapower-catalog-source.yaml
+            MANIFEST_NAME="05-datapower-catalog-source.yaml"
+
+            CATALOG_NAME="ibm-datapower-operator-catalog"
+
+            oc apply -f catalog-sources/$(params.CP4I_VERSION)/$MANIFEST_NAME
 
             #oc apply -f catalog-sources/SC2/05-datapower-apicv12-catalog-source.yaml
 
             echo "Waiting for datapower catalog source to be ready..."
             
             while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/ibm-datapower-operator-catalog -n 
+            catalogsources/$CATALOG_NAME -n 
             openshift-marketplace 2>/dev/null; do sleep 30; done
 
             echo "Datapower catalog source is ready"
 
             echo "Preparing datapower operator manifest"
             
-            #OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/05-datapower-catalog-source.yaml)
+            SUBSCRIPTION_NAME="datapower-operator"
 
-            OP_REL=$(yq '.spec.displayName' catalog-sources/SC2/05-datapower-apicv12-catalog-source.yaml)
+            echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
 
-            SUB_VER="${OP_REL##*-}"
-
-            SUB_VER="${SUB_VER%.*}"
-
-            #if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-              
-            echo "Adding suffix to Subscription version for SC2 release"
-              
-            SUB_EXT="-sc2"
-            
-            #else
-            
-            #SUB_EXT=""
-            
-            #fi
+            while true; do
+              ALT_SUB_VER=$(oc get packagemanifest --selector=catalog=$CATALOG_NAME -o jsonpath="{range .items[?(@.metadata.name=='$SUBSCRIPTION_NAME')]}{.status.defaultChannel}{\"\n\"}{end}")
+              if [ ! -z "$ALT_SUB_VER" ]; then
+                break
+              fi
+              echo "Waiting for 5 second before trying again..."
+              sleep 5
+            done
 
             ( echo "cat <<EOF" ; cat subscriptions/03-datapower-subscription.yaml ;) | \
-              SUB_VER=${SUB_VER} \
-              SUB_EXT=${SUB_EXT} \
+              SUB_VER=${ALT_SUB_VER} \
               sh > 03-datapower-subscription.yaml
 
             echo "Installing datapower operator"
@@ -824,36 +826,37 @@ spec:
 
             echo "Enabling apic catalog source"
             
-            oc apply -f catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml
+            MANIFEST_NAME="07-api-connect-catalog-source.yaml"
+
+            CATALOG_NAME="ibm-apiconnect-catalog"
+
+            oc apply -f catalog-sources/$(params.CP4I_VERSION)/$MANIFEST_NAME
 
             echo "Waiting for apic catalog source to be ready..."
 
             while ! oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
-            catalogsources/ibm-apiconnect-catalog -n 
+            catalogsources/$CATALOG_NAME -n 
             openshift-marketplace 2>/dev/null; do sleep 30; done
 
             echo "APIC catalog source is ready"
             
             echo "Preparing apic operator manifest"
-                        
-            OP_REL=$(yq '.spec.displayName' catalog-sources/$(params.CP4I_VERSION)/07-api-connect-catalog-source.yaml)
 
-            if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
-              echo "Removing suffix to Subscription version for SC2 release"
-              OP_REL="${OP_REL%????????????}"
-            fi
+            SUBSCRIPTION_NAME="ibm-apiconnect"
 
-            OP_REL="-${OP_REL##*-}"
+            echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
 
-            SUB_VER="${OP_REL:1}"
-
-            SUB_VER="${SUB_VER%.*}"
-
-            SUB_EXT=""
+            while true; do
+              ALT_SUB_VER=$(oc get packagemanifest --selector=catalog=$CATALOG_NAME -o jsonpath="{range .items[?(@.metadata.name=='$SUBSCRIPTION_NAME')]}{.status.defaultChannel}{\"\n\"}{end}")
+              if [ ! -z "$ALT_SUB_VER" ]; then
+                break
+              fi
+              echo "Waiting for 5 second before trying again..."
+              sleep 5
+            done
 
             ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
-              SUB_VER=${SUB_VER} \
-              SUB_EXT=${SUB_EXT} \
+              SUB_VER=${ALT_SUB_VER} \
               sh > 04-api-connect-subscription.yaml
 
             echo "Installing apic operator"
