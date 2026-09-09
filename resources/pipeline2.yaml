@@ -80,6 +80,7 @@ spec:
                                 API_GTW_WEBUI_URL=$(oc get route apim-demo-gw-gateway-ui -n $(params.CP4I_NAMESPACE) -o jsonpath='{.spec.host}')
                                 APIC_PTL_URI=$(oc get portalcluster apim-demo-ptl -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="portalWeb")].uri}')"cp4i-demo-org/demo"
                                 APIC_CONSUMER_CATALOG_URI=$(oc get managementcluster apim-demo-mgmt -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="consumerCatalog")].uri}')"cp4i-demo-org/sandbox"
+                                WEB_APP_URL=$(oc get Route jgrmqapi-web -n jgrmqapi -o jsonpath='{.status.ingress[?(@.routerName=="default")].host}')
                                 echo "----------------------------"
                                 echo "Extra API Gateway Service info:"
                                 echo
@@ -111,6 +112,11 @@ spec:
                                         echo "   User name: admin"
                                         echo "   User password:" $(oc get secret apim-demo-gw-admin -n $(params.CP4I_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d)
                                         echo "----------------------------"
+                                        echo "API Connect Demo WebApp..."
+                                        echo
+                                        echo "Demo WebApp:"
+                                        echo "   WebApp URL: https://"$WEB_APP_URL
+                                        echo "----------------------------"
                                         oc create configmap pipeline-apic-demo-output -n default \
                                           --from-literal=msg="Pipeline CP4I Config run completed" \
                                           --from-literal=sandbox-portal-url="$APIC_CONSUMER_CATALOG_URI" \
@@ -119,7 +125,8 @@ spec:
                                           --from-literal=demo-portal-user-password="$(oc get secret jgr-apic-consumer-org -n default -o jsonpath='{.data.password}' | base64 -d)" \
                                           --from-literal=dp-api-gateway-url="https://$API_GTW_WEBUI_URL" \
                                           --from-literal=dp-api-gateway-username=admin \
-                                          --from-literal=dp-api-gateway-user-password="$(oc get secret apim-demo-gw-admin -n $(params.CP4I_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d)"
+                                          --from-literal=dp-api-gateway-user-password="$(oc get secret apim-demo-gw-admin -n $(params.CP4I_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d)" \
+                                          --from-literal=demo-web-app="https://$WEB_APP_URL"
                                     else
                                         echo "----------------------------"
                                         echo "APIC Demo assets were not configured because API Key was invalid."
@@ -540,7 +547,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260904-001"
+            REPO_SIGNATURE="JGR-20260907-002"
 
             echo "Setting up workspace for pipeline"
             
@@ -4425,9 +4432,9 @@ spec:
                 echo "Getting Values to Publish REST API..."
                 echo "Getting Portal URL..."                
                 #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $3}')
+                    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '$1 == "portal-service" {print $3}')
                 #else
-                #    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '{print $4}')
+                #    APIC_PORTAL_URL=$(./apic portal-services:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --scope org --org $APIC_ORG | awk '$1 == "portal-service" {print $4}')
                 #fi
 
                 echo "Getting Sandbox Catalog definition..."
@@ -5020,6 +5027,156 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
+    - name: apic-webapp-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            echo "Creating jgrmqapi namespace"
+
+            if [[ $(oc get projects | grep jgrmqapi | wc -l) -eq 0 ]]; then
+                oc create namespace jgrmqapi
+            fi 
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Setting API URL..."
+
+            GTWY_BASE_URL=$(oc get GatewayCluster apim-demo-gw -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="gateway")].uri}')
+
+            API_BASE_URL="$GTWY_BASE_URL/cp4i-demo-org/demo/jgrmqapi/v2"
+
+            echo "Getting App Client Id..."
+
+            API_CLIENT_ID=$(oc get secret jgr-apic-apps-credentials -n default --ignore-not-found -o jsonpath='{.data.premapp}' | base64 -d)
+
+            if [[ -z "$API_CLIENT_ID" ]]; then
+              echo "Client Id is not available. APIC Web App will not be deployed."
+              exit 0
+            fi
+
+            echo "Preparing WebApp Config File..."
+
+            ( echo "cat <<EOF" ; cat templates/template-apic-webapp-jgrmqapi-config.yaml ;) | \
+              API_BASE_URL=${API_BASE_URL} \
+              API_CLIENT_ID=${API_CLIENT_ID} \
+              sh > apic-webapp-jgrmqapi-config.yaml
+
+            echo "Creating resources..."
+
+            oc apply -f apic-webapp-jgrmqapi-config.yaml -n jgrmqapi
+
+            oc apply -f resources/98e-webapp-jgrmqapi-deployment.yaml -n jgrmqapi
+            
+            oc apply -f resources/98f-webapp-jgrmqapi-service-route.yaml -n jgrmqapi
+
+            echo "WebApp has been deployed."
+        - name: VERSION
+          value: latest
+      retries: 3
+      runAfter:
+        - apic-create-apps-subscription
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      timeout: 3h0m0s  
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.check-cp4i-version.results.output)"
+          operator: in
+          values: ["SC2", "CD"]
+        - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.APIC_API_KEY)"
+          operator: notin
+          values: [""]
+        - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: apic-load-generator-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            echo "Creating jgrmqapi namespace"
+
+            if [[ $(oc get projects | grep jgrmqapi | wc -l) -eq 0 ]]; then
+                oc create namespace jgrmqapi
+            fi 
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Setting API URL..."
+
+            GTWY_BASE_URL=$(oc get GatewayCluster apim-demo-gw -n $(params.CP4I_NAMESPACE) -o jsonpath='{.status.endpoints[?(@.name=="gateway")].uri}')
+
+            ENDPOINT_URL="$GTWY_BASE_URL/cp4i-demo-org/demo/jgrmqapi/v2/contacts"
+
+            echo "Getting App Client Id..."
+
+            API_CLIENT_IDS=$(oc get secret jgr-apic-apps-credentials -n default --ignore-not-found -o jsonpath='{.data.dfltapp}' | base64 -d)
+
+            if [[ -z "$API_CLIENT_IDS" ]]; then
+              echo "No Client Ids are available. APIC Loader will not be deployed."
+              exit 0
+            fi
+
+            echo "Preparing WebApp Config File..."
+
+            ( echo "cat <<EOF" ; cat templates/template-apic-loader-jgrmqapi-config.yaml ;) | \
+              ENDPOINT_URL=${ENDPOINT_URL} \
+              API_CLIENT_IDS=${API_CLIENT_IDS} \
+              sh > apic-loader-config.yaml
+
+            echo "Creating resources..."
+
+            oc apply -f apic-loader-config.yaml
+
+            oc apply -f resources/98a-loader-script-jgrmqapi-configmap.yaml
+
+            oc apply -f resources/98c-loader-jgrmqapi-deployment.yaml
+
+            echo "Load Generator has been deployed."
+        - name: VERSION
+          value: latest
+      retries: 3
+      runAfter:
+        - apic-webapp-deployment
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      timeout: 3h0m0s  
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.check-cp4i-version.results.output)"
+          operator: in
+          values: ["SC2", "CD"]
+        - input: "$(params.DEPLOY_API_CONNECT_DEMOS)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.APIC_API_KEY)"
+          operator: notin
+          values: [""]
+        - input: "$(tasks.apic-create-apis-draft.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(tasks.apic-config-catalogs-publish-apis.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
     - name: apic-create-engagement-resources
       params:
         - name: SCRIPT
@@ -5257,7 +5414,7 @@ spec:
           value: latest
       retries: 3
       runAfter:
-        - apic-create-apps-subscription
+        - apic-load-generator-deployment
       taskRef:
         kind: Task
         name: jgr-task-0.2
