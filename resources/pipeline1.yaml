@@ -352,7 +352,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260907-002"
+            REPO_SIGNATURE="JGR-20260910-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -768,6 +768,8 @@ spec:
 
             echo "Preparing common services operator manifest"
             
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-common-service-operator"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -782,6 +784,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/00-common-services-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 00-common-service-subscription.yaml
 
@@ -851,6 +854,8 @@ spec:
 
             echo "Preparing platform navigator operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-integration-platform-navigator"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -865,6 +870,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/01-platform-navigator-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 01-platform-navigator-subscription.yaml
 
@@ -998,6 +1004,8 @@ spec:
 
             echo "Preparing asset repository operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-integration-asset-repository"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -1012,6 +1020,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/02-asset-repo-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 02-asset-repo-subscription.yaml
 
@@ -1142,6 +1151,8 @@ spec:
 
             echo "Preparing integration monitoring operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-integration-monitoring"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -1156,6 +1167,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/12-integration-monitoring-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 12-integration-monitoring-subscription.yaml
 
@@ -1366,6 +1378,8 @@ spec:
 
             echo "Preparing datapower operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="datapower-operator"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -1380,6 +1394,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/03-datapower-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 03-datapower-subscription.yaml
 
@@ -1446,6 +1461,8 @@ spec:
 
             echo "Preparing apic operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-apiconnect"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -1460,6 +1477,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 04-api-connect-subscription.yaml
 
@@ -2259,6 +2277,8 @@ spec:
 
             echo "Preparing event streams operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-eventstreams"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -2273,6 +2293,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/05-event-streams-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 05-event-streams-subscription.yaml
 
@@ -2415,6 +2436,8 @@ spec:
 
             echo "Preparing event endpoint managenent operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-eventendpointmanagement"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -2429,6 +2452,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/09-eem-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 09-eem-subscription.yaml
 
@@ -2885,6 +2909,8 @@ spec:
 
             echo "Preparing mq operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-mq"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -2899,6 +2925,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/06-mq-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 06-mq-subscription.yaml
 
@@ -3110,6 +3137,8 @@ spec:
 
             echo "Preparing app connect operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-appconnect"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -3124,6 +3153,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/07-app-connect-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 07-app-connect-subscription.yaml
 
@@ -3559,6 +3589,8 @@ spec:
 
             echo "Preparing flink operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-eventautomation-flink"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -3573,6 +3605,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/10-ea-flink-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 10-ea-flink-subscription.yaml
 
@@ -3720,6 +3753,8 @@ spec:
 
             echo "Preparing event processing operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-eventprocessing"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -3734,6 +3769,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/11-event-processing-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 11-event-processing-subscription.yaml
 

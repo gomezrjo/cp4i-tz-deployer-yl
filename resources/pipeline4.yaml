@@ -300,7 +300,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260907-002"
+            REPO_SIGNATURE="JGR-20260910-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -678,6 +678,8 @@ spec:
             echo "Common services catalog source is ready"
 
             echo "Preparing common services operator manifest"
+
+            NS_NAME="openshift-operators"
             
             SUBSCRIPTION_NAME="ibm-common-service-operator"
 
@@ -693,6 +695,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/00-common-services-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 00-common-service-subscription.yaml
 
@@ -759,6 +762,8 @@ spec:
             echo "Datapower catalog source is ready"
 
             echo "Preparing datapower operator manifest"
+
+            NS_NAME="openshift-operators"
             
             SUBSCRIPTION_NAME="datapower-operator"
 
@@ -774,6 +779,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/03-datapower-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 03-datapower-subscription.yaml
 
@@ -842,6 +848,8 @@ spec:
             
             echo "Preparing apic operator manifest"
 
+            NS_NAME="openshift-operators"
+
             SUBSCRIPTION_NAME="ibm-apiconnect"
 
             echo "Getting Channel version for Operator $SUBSCRIPTION_NAME"
@@ -856,6 +864,7 @@ spec:
             done
 
             ( echo "cat <<EOF" ; cat subscriptions/04-api-connect-subscription.yaml ;) | \
+              NS_NAME=${NS_NAME} \
               SUB_VER=${ALT_SUB_VER} \
               sh > 04-api-connect-subscription.yaml
 
