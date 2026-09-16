@@ -1,0 +1,823 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: idig-v12-demo
+  namespace: default
+spec:
+  workspaces:
+    - name: cp4i-ws
+  finally:
+    - name: output-usage
+      params:
+        - name: SCRIPT
+          value: >-
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            NS_NAME="tools"
+            
+            INST_NAME="idig"
+
+            IDIG_DEV_PTL_INST_NAME="${INST_NAME}-devportal"
+
+            oc delete configmap/pipeline-idigv12-demo-output -n default --ignore-not-found=true 
+            
+            if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
+              echo "Getting IDIG Cluster instance $INST_NAME access info..."
+              IDIG_WEB_UI=$(oc get DatapowerInteractGatewayCluster $INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="idigWeb")].uri}')
+              IDIG_ADMIN_PWD=$(oc get secret $INST_NAME-idig-admin-pass -n $NS_NAME --ignore-not-found  -o jsonpath='{.data.password}' | base64 -d)
+              echo "Getting IDIG Dev Portal instance $IDIG_DEV_PTL_INST_NAME endpoint..."
+              IDIG_DEV_PTL_WEB_UI=$(oc get DevPortalCluster $IDIG_DEV_PTL_INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="devportalWeb")].uri}')
+              IDIG_DEV_PTL_ADMIN_PWD=$(oc get secret $IDIG_DEV_PTL_INST_NAME-admin-secret -n $NS_NAME --ignore-not-found -o jsonpath='{.data.password}' | base64 -d)
+              echo
+              echo "IDIG Cluster access and config info:"
+              echo "IDIG Web UI."
+              echo "   UI URL: $IDIG_WEB_UI"
+              echo "   Admin user: administrator"
+              echo "   Admin password: $IDIG_ADMIN_PWD"
+              echo "=========="
+              echo "IDIG Dev Portal."
+              echo "   UI URL: $IDIG_DEV_PTL_WEB_UI"
+              echo "   Admin user: administrator"
+              echo "   Admin password: $IDIG_DEV_PTL_ADMIN_PWD"
+              echo "=========="
+              oc create configmap pipeline-idigv12-demo-output -n default \
+                --from-literal=msg="Pipeline IDIGv12 Demo finished."
+            else
+              echo "----------------------------"
+              echo "Pipeline IDIGv12 Demo couldn't run successfully."              
+              echo "Check the logs in setup-workspace task for more details."
+              echo "----------------------------"
+              oc create configmap pipeline-idigv12-demo-output -n default \
+                --from-literal=msg="Pipeline IDIGv12 Demo couldn't run. Check the logs in setup-workspace task for more details."
+            fi
+        - name: VERSION
+          value: latest
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      workspaces:
+        - name: cp4i-ws
+  params:
+    - name: IDIG_NAMESPACE
+      default: tools
+      description: Namespace to deploy IDIG Cluster
+      type: string
+    - name: DEFAULT_SC
+      default: ocs-external-storagecluster-ceph-rbd
+      description: Default Storage Class for Cluster
+      type: string
+    - name: OCP_BLOCK_STORAGE
+      default: ocs-external-storagecluster-ceph-rbd
+      description: Block Storage Class for Cluster
+      type: string
+    - name: IBM_ENTITLEMENT_KEY_ID
+      default: a65ac528-bbca-1425-8d07-fde9e2f1ff70
+      type: string
+    - name: IDIG_IMG_REGISTRY_BASE_PATH
+      default: ''
+      description: Private Image Registry with IDIG images
+      type: string
+    - name: IDIG_IMG_REGISTRY_NAMESPACE
+      default: ''
+      description: Registry Namespace associated with IDIG images
+      type: string
+    - name: IDIG_REGISTRY_USER_NAME
+      default: ''
+      description: User with access to Private Image Registry
+      type: string
+    - name: IDIG_REGISTRY_USER_PWD
+      default: ''
+      description: User password 
+      type: string
+    - name: WATSONX_API_KEY
+      default: ''
+      description: API Key to access WatsonX
+      type: string
+    - name: WATSONX_PROJECT_ID
+      default: ''
+      description: Project Id defined in WatsonX
+      type: string
+    - name: IBM_SECRETS_MANAGER_ENDPOINT
+      default: >-
+        https://afa20521-cd75-4864-843f-e59fd0ffd49d.us-south.secrets-manager.appdomain.cloud
+      type: string
+    - name: COPY_TLS_CERTS
+      default: 'true'
+      type: string
+  tasks:
+    - name: setup-workspace
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            REPO_SIGNATURE="JGR-20260915-001"
+
+            echo "Setting up workspace for pipeline"
+
+            cd workspace/cp4i-ws
+
+            git clone --single-branch --branch main https://github.com/gomezrjo/cp4i-deployer-helper.git
+
+            echo "Checking helper repo."
+
+            if grep -q "${REPO_SIGNATURE}" cp4i-deployer-helper/signature; then
+                echo "Valid signature in helper repo."
+            else
+                echo "Helper repo is out of sync, update this repo in your workstation."
+                echo "Once updated locally re-apply the pipeline to your cluster before running the pipeline again."
+                printf false | tee $(results.output.path)
+                exit 0
+            fi
+
+            echo "Checking IDIG Private Image Registry parameters were provided."
+            
+            if  [[ -z "$(params.IDIG_IMG_REGISTRY_BASE_PATH)" ]] ||
+                [[ -z "$(params.IDIG_IMG_REGISTRY_NAMESPACE)" ]] ||
+                [[ -z "$(params.IDIG_REGISTRY_USER_NAME)" ]] || 
+                [[ -z "$(params.IDIG_REGISTRY_USER_PWD)" ]]; then 
+                echo "Private Image Registry parameters are mandatory."
+                printf false | tee $(results.output.path)
+                exit 0
+            else 
+                echo "Private Image Registry parameters were provided."
+            fi
+
+            echo "Checking SC provided in parameter DEFAULT_SC"
+            
+            SC_EXIST=$(oc get sc --no-headers | awk -v sc_name=$(params.DEFAULT_SC) '$1 == sc_name {print "yes"}')
+            
+            if [[ -z $SC_EXIST ]]; then 
+                echo "SC does NOT exist"
+                printf false | tee $(results.output.path)
+                exit 0
+            else 
+                echo "SC found"
+            fi
+
+            echo "Checking SC provided in parameter OCP_BLOCK_STORAGE"
+            
+            SC_EXIST=$(oc get sc --no-headers | awk -v sc_name=$(params.OCP_BLOCK_STORAGE) '$1 == sc_name {print "yes"}')
+
+            if [[ -z $SC_EXIST ]]; then 
+                echo "SC does NOT exist"
+                printf false | tee $(results.output.path)
+                exit 0
+            else 
+                echo "SC found"
+            fi
+
+            printf true | tee $(results.output.path)
+
+            echo "Workspace for pipeline is ready"
+        - name: VERSION
+          value: latest
+      retries: 3
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      workspaces:
+        - name: cp4i-ws
+    - name: set-default-storage-class
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            echo "Setting default storage class"
+            
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+                        
+            if [[ $(oc get sc | grep default | wc -l) -gt 0 ]]; then
+                oc get sc | grep default | awk '{system("oc patch storageclass " $1 " --patch-file resources/99-sc-remove-default.yaml")}'          
+            fi
+            
+            oc patch storageclass $(params.DEFAULT_SC) --patch-file resources/99-sc-set-default.yaml
+        - name: VERSION
+          value: latest
+      retries: 3
+      runAfter:
+        - setup-workspace
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: cert-mgr-operator-installation
+      params:
+        - name: SCRIPT
+          value: |-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Creating a new namespace called cert-manager-operator"
+
+            if [[ $(oc get projects | grep cert-manager-operator | wc -l) -eq 0 ]]; then
+                oc apply -f resources/00-cert-manager-namespace.yaml
+            fi 
+
+            echo "Creating operator group for cert-manager-operator namespace"
+
+            oc apply -f resources/00-cert-manager-operatorgroup.yaml
+            
+            echo "Creating subscription for cert-manager-operator"
+            
+            oc apply -f resources/00-cert-manager-subscription.yaml
+
+            echo "Getting operator version..."
+            
+            SUB_NAME=''
+            
+            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment cert-manager-operator-controller-manager -n cert-manager-operator --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
+
+            echo "Waiting for cert manager operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded csv/$SUB_NAME -n cert-manager-operator 2>/dev/null; do sleep 30; done
+
+            echo "Cert manager operator is ready."
+        - name: VERSION
+          value: latest
+      runAfter:
+        - set-default-storage-class
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: create-cp4i-base-namespaces
+      params:
+        - name: SCRIPT
+          value: |-
+            set -o xtrace
+
+            CP4I_NAMESPACES=($(params.IDIG_NAMESPACE))
+
+            for NS in "${CP4I_NAMESPACES[@]}"
+
+            do
+            
+                echo "Creating a new namespace called" $NS
+
+                if [[ -z "$(oc projects -q | awk -v ns=$NS '$1 == ns {print $1}')" ]]; then
+                    oc new-project $NS
+                else
+                    echo "Namespace" $NS "already exists."
+                fi 
+
+            done
+
+            echo "Namespaces are ready"            
+        - name: VERSION
+          value: latest
+      runAfter:
+        - cert-mgr-operator-installation
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+    - name: get-entitlement-key
+      params:
+        - name: KEY_ID
+          value: $(params.IBM_ENTITLEMENT_KEY_ID)
+        - name: SECRETS_MANAGER_ENDPOINT_URL
+          value: $(params.IBM_SECRETS_MANAGER_ENDPOINT)
+      runAfter:
+        - create-cp4i-base-namespaces
+      taskRef:
+        kind: Task
+        name: ibmcloud-secrets-manager-get
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+    - name: create-ibm-entitlement-key
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            CP4I_NAMESPACES=($(params.IDIG_NAMESPACE))
+
+            for NS in "${CP4I_NAMESPACES[@]}"
+
+            do
+
+                if oc get secret ibm-entitlement-key -n $NS >/dev/null 2>&1; then
+                    username=$(oc get secret ibm-entitlement-key -n $NS -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d | jq -r '.auths."cp.icr.io".username')
+                    password=$(oc get secret ibm-entitlement-key -n $NS -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d | jq -r '.auths."cp.icr.io".password')
+
+                    if [[ "$username" == "cp" ]] && [[ "$password" == "$(tasks.get-entitlement-key.results.secret-value)" ]]; then
+                        echo "Secret ibm-entitlement-key was already created. Skipping secret creation"
+                        exit 0
+                    else
+                        echo "Existing ibm-entitlement-key password does not match retrieved key. Deleting..."
+                        oc delete secret ibm-entitlement-key -n $NS --ignore-not-found=true
+
+                        echo "Creating new ibm-entitlement-key secret"
+                        oc create secret docker-registry ibm-entitlement-key \
+                            --docker-username=cp \
+                            --docker-password=$(tasks.get-entitlement-key.results.secret-value) \
+                            --docker-server=cp.icr.io \
+                            --namespace=$NS
+                    fi
+                else
+                    echo "Creating new ibm-entitlement-key secret"
+                    oc create secret docker-registry ibm-entitlement-key \
+                        --docker-username=cp \
+                        --docker-password=$(tasks.get-entitlement-key.results.secret-value) \
+                        --docker-server=cp.icr.io \
+                        --namespace=$NS
+                fi
+
+            done    
+        - name: VERSION
+          value: latest
+      runAfter:
+        - get-entitlement-key
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+    - name: define-idig-certificates
+      params:
+        - name: SCRIPT
+          value: |-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Defining IDIG Certificates..." "BLUE"
+
+            oc apply -f resources/85a-idig-ingress-issuer-config.yaml -n $NS_NAME
+            
+            echo "IDIG Certifates are ready."
+        - name: VERSION
+          value: latest
+      runAfter:
+        - create-ibm-entitlement-key
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: apic-operator-installation
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Deploying APIC CRDs..."
+
+            oc apply --server-side --force-conflicts -f resources/85b-idig-apic-crds.yaml
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/85c-idig-apic-operator.yaml ;) | \
+                NS_NAME=${NS_NAME} \
+                sh > idig-apic-operator.yaml
+
+            echo "Deploying APIC operator..."
+
+            oc apply -f idig-apic-operator.yaml
+
+            echo "Waiting for Operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                  deployment/ibm-apiconnect -n $NS_NAME 2>/dev/null; do 
+              sleep 5
+            done
+
+            echo "APIC operator is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - define-idig-certificates
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: valkey-instance-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            NAMESPACE=$(params.IDIG_NAMESPACE)
+
+            SECRET_NAME="valkey-tls"
+
+            mkdir -p certs
+
+            cd certs
+
+            echo "Generate CA key and certificate"
+
+            openssl genrsa -out ca.key 2048
+            
+            openssl req -x509 -new -nodes -key ca.key -sha256 -days 365 -out ca.crt -subj "/CN=ValkeyCA"
+
+            echo "Generate server key"
+
+            openssl genrsa -out tls.key 2048
+
+            echo "Generate certificate signing request"
+            
+            openssl req -new -key tls.key -out tls.csr -subj "/CN=valkey.${NAMESPACE}.svc.cluster.local"
+
+            echo "Create config file for SAN"
+
+            ( echo "cat <<EOF" ; cat ../templates/template-apic-valkey-tls.conf ;) | \
+              NAMESPACE=${NAMESPACE} \
+              sh > san.cnf
+
+            echo "Generate the certificate with SAN"
+
+            openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out tls.crt -days 365 -sha256 -extfile san.cnf -extensions v3_req
+
+            # Create the TLS secrete
+            
+            echo "Creating TLS secret ${SECRET_NAME} in namespace ${NAMESPACE}"
+            
+            oc create namespace ${NAMESPACE} --dry-run=client -o yaml | oc apply -f -
+            
+            oc create secret generic ${SECRET_NAME} \
+              --from-file=ca.crt=ca.crt \
+              --from-file=tls.crt=tls.crt \
+              --from-file=tls.key=tls.key \
+              -n ${NAMESPACE}
+
+            echo "Secret ${SECRET_NAME} created in namespace ${NAMESPACE}"
+
+            cd ..
+            
+            rm -r certs
+
+            INST_NAME="valkey"
+            
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            echo "Deploying Valkey CRDs..."
+
+            oc apply --server-side -f resources/70a-apic-valkey-crds.yaml
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/70b-apic-valkey-operator.yaml ;) | \
+                NS_NAME=${NS_NAME} \
+                sh > apic-valkey-operator.yaml
+
+            echo "Deploying Valkey operator..."
+
+            oc apply --server-side --force-conflicts -f apic-valkey-operator.yaml
+
+            echo "Waiting for Operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                  deployment/valkey-operator -n $NS_NAME 2>/dev/null; do 
+              sleep 5
+            done
+
+            echo "Defining Valkey Admin password..."
+
+            if [[ -z "$(oc get secret valkey-secret -n ${NS_NAME} --no-headers --ignore-not-found=true)" ]]; then
+              oc create secret generic valkey-secret -n $NS_NAME --from-literal=username=default --from-literal=password=admin
+            else
+              echo "Valkey valkey-secret already exists in namespace $NS_NAME"
+            fi
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/70c-apic-valkey-standalone-cr.yaml ;) | \
+                INST_NAME=${INST_NAME} \
+                sh > apic-valkey-standalone-cr.yaml
+
+            echo "Deploying Valkey instance..."
+
+            oc apply -f apic-valkey-standalone-cr.yaml -n $NS_NAME
+
+            echo "Cleaning up temp file..."
+            
+            rm -f apic-valkey-operator.yaml
+
+            echo "Waiting for Valkey instance to be ready..."
+
+            while ! oc wait --for=condition=Ready
+            pod/${INST_NAME}-0 -n
+            $NS_NAME  2>/dev/null; do sleep 20; done
+
+            echo "Valkey instance is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - apic-operator-installation
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      timeout: 3h0m0s
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: dp-nanogateway-operator-installation
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Getting OCP Version..."
+
+            oc version -o json > ocp_info.json
+            
+            TMP_STR=$(jq -r '.openshiftVersion' ocp_info.json)
+            
+            OCP_CURR_VER="${TMP_STR%.*}"
+            
+            OCP_MIN_VER="4.18"
+
+            if awk -v n1="$OCP_CURR_VER" -v n2="$OCP_MIN_VER" 'BEGIN {exit !(n1 > n2)}'; then
+              echo "OCP is at the right version, the API Gateway is already available..."
+            else
+              echo "Installing the API Gateway..."
+              oc apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+            fi
+
+            rm -f ocp_info.json
+
+            echo "Deploying Nano Gateway CRDs..."
+            
+            oc apply -f resources/85d-idig-nanogw-crds.yaml
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/85e-idig-nanogw-operator.yaml ;) | \
+                NS_NAME=${NS_NAME} \
+                sh > idig-nano-gwy-operator.yaml
+
+            echo "Deploying Nano Gateway operator..."
+
+            oc apply -f idig-nano-gwy-operator.yaml
+
+            echo "Waiting for Operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                  deployment/datapower-nano-operator -n $NS_NAME 2>/dev/null; do 
+              sleep 5
+            done
+
+            echo "Enabling WildCards for Routes..."
+
+            oc patch ingresscontroller default -n openshift-ingress-operator --type=merge -p '{"spec":{"routeAdmission":{"wildcardPolicy":"WildcardsAllowed"}}}'
+
+            echo "Cleaning up temp file..."
+
+            rm -f idig-nano-gwy-operator.yaml
+
+            echo "Nano Gateway operator is Ready..."
+        - name: VERSION
+          value: latest
+      runAfter:
+        - valkey-instance-deployment
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: create-private-registry-key
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_BASE_PATH)
+
+            USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
+
+            E_KEY=$(params.IDIG_REGISTRY_USER_PWD)
+
+            if [[ -z "$(oc get secret idig-registry-secret -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
+              echo "Creating idig-registry-secret in namespace $NS_NAME..."
+              oc create secret docker-registry idig-registry-secret \
+                --docker-username=$USER_NAME \
+                --docker-password=$E_KEY \
+                --docker-server=$IDIG_IMG_REGISTRY \
+                --namespace=$NS_NAME
+            else
+              echo "idig-registry-secret already exists in namespace $NS_NAME"
+            fi
+        - name: VERSION
+          value: latest
+      runAfter:
+        - dp-nanogateway-operator-installation
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+    - name: idig-operators-installation
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_BASE_PATH)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo "Preparing YAML file..."
+
+            ( echo "cat <<EOF" ; cat resources/85f-idig-idig-nanogw-operator.yaml ;) | \
+              NS_NAME=${NS_NAME} \
+              IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY} \
+              sh > idig-idig-nanogw-operator.yaml
+
+            echo "Deploying IDIG NanoGw operator..."
+
+            oc apply -f idig-idig-nanogw-operator.yaml
+
+            echo "Waiting for Operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                  deployment/idig-gw-operator -n $NS_NAME 2>/dev/null; do 
+              sleep 5
+            done
+
+            echo "Preparing YAML file..."
+
+            export NS_NAME=${NS_NAME}
+            
+            export IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY}
+            
+            envsubst < resources/85g-idig-operator.yaml > idig-operator.yaml
+
+            echo "Deploying IDIG operator..."
+
+            oc apply -f idig-operator.yaml
+
+            echo "Waiting for Operator to be ready..."
+
+            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
+                  deployment/idig-operator -n $NS_NAME 2>/dev/null; do 
+              sleep 5
+            done
+
+            echo "IDIG operators are Ready..."
+        - name: VERSION
+          value: latest
+      runAfter:
+        - create-private-registry-key
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws
+    - name: define-watsonx-credentials
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            WATSONX_API_KEY=$(params.WATSONX_API_KEY)
+            
+            WATSONX_PROJECT_ID=$(params.WATSONX_PROJECT_ID)
+
+            echo "Preparing YAML file..." "BLUE"
+
+            ( echo "cat <<EOF" ; cat templates/template-idig-watsonx-credentials.yaml ;) | \
+              WATSONX_API_KEY=${WATSONX_API_KEY} \
+              WATSONX_PROJECT_ID=${WATSONX_PROJECT_ID} \
+              sh > idig-watsonx-credentials.yaml
+
+            if [[ -z "$(oc get secret watsonx-credentials -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
+              echo "Creating WatsonX Credentials in namespace $NS_NAME..."
+              oc apply -f idig-watsonx-credentials.yaml -n $NS_NAME
+            else
+              echo "WatsonX Credentials already exists in namespace $NS_NAME"
+            fi
+        - name: VERSION
+          value: latest
+      runAfter:
+        - idig-operators-installation
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.WATSONX_API_KEY)"
+          operator: notin
+          values: [""]
+        - input: "$(params.WATSONX_PROJECT_ID)"
+          operator: notin
+          values: [""]
+    - name: idig-cluster-inst-deployment
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            INST_NAME="idig"
+
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_BASE_PATH)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
+
+            OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE)
+
+            echo "Preparing YAML file..."
+
+            STACK_HOST="apps."$(oc get dnses.config.openshift.io cluster -o jsonpath='{.spec.baseDomain}')
+            
+            ( echo "cat <<EOF" ; cat instances/common/50-idig-cluster-instance.yaml ;) | \
+              INST_NAME=${INST_NAME} \
+              IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY} \
+              STACK_HOST=${STACK_HOST} \
+              OCP_BLOCK_STORAGE=${OCP_BLOCK_STORAGE} \
+              sh > idig-cluster-instance.yaml
+
+            if [ -z "$(oc get secret watsonx-credentials -n $NS_NAME --no-headers --ignore-not-found)" ]; then
+              echo "Disabling integration with WatsonX..."
+              yq -i 'del(.spec.watsonxSecret)' idig-cluster-instance.yaml
+            fi
+
+            echo "Creating IDIG Cluster instance..."
+
+            oc apply -f idig-cluster-instance.yaml -n ${NS_NAME}
+            
+            echo "Waiting for IDIG Cluster instance to be ready..."
+
+            while ! oc wait --for=condition=Ready
+            DatapowerInteractGatewayCluster/$INST_NAME -n
+            $NS_NAME  2>/dev/null; do sleep 300; done
+
+            echo "IDIG Cluster instance is ready"
+        - name: VERSION
+          value: latest
+      runAfter:
+        - define-watsonx-credentials
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      timeout: 3h0m0s
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: cp4i-ws

@@ -22,7 +22,7 @@ spec:
     env:
     - name: HOME
       value: /tekton/home
-    image: quay.io/jgomezr/jgr-pak-ubi:v1.15.0
+    image: quay.io/jgomezr/jgr-pak-ubi:v1.16.0
     name: oc
     script: |
       #!/usr/bin/env bash
