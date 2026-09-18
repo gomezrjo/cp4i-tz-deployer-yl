@@ -101,16 +101,16 @@ spec:
                         QMGR_INT_NAME='QMGRNATIVEHA'
                         QMGR_CHANNEL="MTLS.SVRCONN"
                         QMGR_CERT_LABEL="qmgr-native-ha-app"
-                        QMGR_HOST=$(oc get route ${QMGR_NAME}-ibm-mq-qm -n $(params.MQ_NAMESPACE) -o jsonpath="{.spec.host}")
+                        QMGR_HOST=$(oc get route ${QMGR_NAME}-ibm-mq-qm -n cp4i-mq -o jsonpath="{.spec.host}")
             ( echo "cat <<EOF" ; cat templates/template-mq-nha-ccdt.json ;) | \
                 QMGR_CHANNEL=${QMGR_CHANNEL} \
                 QMGR_HOST=${QMGR_HOST} \
                 QMGR_INT_NAME=${QMGR_INT_NAME} \
                 QMGR_CERT_LABEL=${QMGR_CERT_LABEL} \
                 sh > mqnhaccdt.json
-                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=ca.crt
-                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.crt
-                        oc extract secret/qmgr-native-ha-tls-secret -n $(params.MQ_NAMESPACE) --keys=tls.key
+                        oc extract secret/qmgr-native-ha-tls-secret -n cp4i-mq --keys=ca.crt
+                        oc extract secret/qmgr-native-ha-tls-secret -n cp4i-mq --keys=tls.crt
+                        oc extract secret/qmgr-native-ha-tls-secret -n cp4i-mq --keys=tls.key
                         openssl pkcs12 -export -in tls.crt -inkey tls.key -certfile ca.crt -out qmgr-server-nha-tls.p12 -name qmgr-native-ha-app -passout pass:password
             ( echo "cat <<EOF" ; cat templates/template-mq-nha-mqclient.ini ;) | \
                 QMGR_CCDT_NAME='mqnhaccdt' \
@@ -352,7 +352,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260915-001"
+            REPO_SIGNATURE="JGR-20260917-001"
 
             echo "Setting up workspace for pipeline"
 
