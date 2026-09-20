@@ -21,34 +21,43 @@ spec:
 
             oc delete configmap/pipeline-idigv12-demo-output -n default --ignore-not-found=true 
             
-            if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
-              echo "Getting IDIG Cluster instance $INST_NAME access info..."
-              IDIG_WEB_UI=$(oc get DatapowerInteractGatewayCluster $INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="idigWeb")].uri}')
-              IDIG_ADMIN_PWD=$(oc get secret $INST_NAME-idig-admin-pass -n $NS_NAME --ignore-not-found  -o jsonpath='{.data.password}' | base64 -d)
-              echo "Getting IDIG Dev Portal instance $IDIG_DEV_PTL_INST_NAME endpoint..."
-              IDIG_DEV_PTL_WEB_UI=$(oc get DevPortalCluster $IDIG_DEV_PTL_INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="devportalWeb")].uri}')
-              IDIG_DEV_PTL_ADMIN_PWD=$(oc get secret $IDIG_DEV_PTL_INST_NAME-admin-secret -n $NS_NAME --ignore-not-found -o jsonpath='{.data.password}' | base64 -d)
-              echo
-              echo "IDIG Cluster access and config info:"
-              echo "IDIG Web UI."
-              echo "   UI URL: $IDIG_WEB_UI"
-              echo "   Admin user: administrator"
-              echo "   Admin password: $IDIG_ADMIN_PWD"
-              echo "=========="
-              echo "IDIG Dev Portal."
-              echo "   UI URL: $IDIG_DEV_PTL_WEB_UI"
-              echo "   Admin user: administrator"
-              echo "   Admin password: $IDIG_DEV_PTL_ADMIN_PWD"
-              echo "=========="
+            if [[ "$(tasks.status)" == "Failed" ]]; then
+              echo "----------------------------"
+              echo "Pipeline APICv12 Demo couldn't run successfully."              
+              echo "Check the PipelineRun logs for more details."
+              echo "----------------------------"
               oc create configmap pipeline-idigv12-demo-output -n default \
-                --from-literal=msg="Pipeline IDIGv12 Demo finished."
+                --from-literal=msg="Pipeline IDGIv12 Demo couldn't run. Check the PipelineRun logs for more details."
             else
-              echo "----------------------------"
-              echo "Pipeline IDIGv12 Demo couldn't run successfully."              
-              echo "Check the logs in setup-workspace task for more details."
-              echo "----------------------------"
-              oc create configmap pipeline-idigv12-demo-output -n default \
-                --from-literal=msg="Pipeline IDIGv12 Demo couldn't run. Check the logs in setup-workspace task for more details."
+              if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
+                echo "Getting IDIG Cluster instance $INST_NAME access info..."
+                IDIG_WEB_UI=$(oc get DatapowerInteractGatewayCluster $INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="idigWeb")].uri}')
+                IDIG_ADMIN_PWD=$(oc get secret $INST_NAME-idig-admin-pass -n $NS_NAME --ignore-not-found  -o jsonpath='{.data.password}' | base64 -d)
+                echo "Getting IDIG Dev Portal instance $IDIG_DEV_PTL_INST_NAME endpoint..."
+                IDIG_DEV_PTL_WEB_UI=$(oc get DevPortalCluster $IDIG_DEV_PTL_INST_NAME -n $NS_NAME --ignore-not-found -o jsonpath='{.status.endpoints[?(@.name=="devportalWeb")].uri}')
+                IDIG_DEV_PTL_ADMIN_PWD=$(oc get secret $IDIG_DEV_PTL_INST_NAME-admin-secret -n $NS_NAME --ignore-not-found -o jsonpath='{.data.password}' | base64 -d)
+                echo
+                echo "IDIG Cluster access and config info:"
+                echo "IDIG Web UI."
+                echo "   UI URL: $IDIG_WEB_UI"
+                echo "   Admin user: administrator"
+                echo "   Admin password: $IDIG_ADMIN_PWD"
+                echo "=========="
+                echo "IDIG Dev Portal."
+                echo "   UI URL: $IDIG_DEV_PTL_WEB_UI"
+                echo "   Admin user: administrator"
+                echo "   Admin password: $IDIG_DEV_PTL_ADMIN_PWD"
+                echo "=========="
+                oc create configmap pipeline-idigv12-demo-output -n default \
+                  --from-literal=msg="Pipeline IDIGv12 Demo finished."
+              else
+                echo "----------------------------"
+                echo "Pipeline IDIGv12 Demo couldn't run successfully."              
+                echo "Check the logs in setup-workspace task for more details."
+                echo "----------------------------"
+                oc create configmap pipeline-idigv12-demo-output -n default \
+                  --from-literal=msg="Pipeline IDIGv12 Demo couldn't run. Check the logs in setup-workspace task for more details."
+              fi
             fi
         - name: VERSION
           value: latest
@@ -111,7 +120,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260917-001"
+            REPO_SIGNATURE="JGR-20260919-001"
 
             echo "Setting up workspace for pipeline"
 
