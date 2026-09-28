@@ -512,11 +512,11 @@ spec:
       description: Token to access EEM
       type: string
     - name: DEPLOY_EA_POSTGRESQL_OPERATOR
-      default: 'false'
+      default: 'true'
       description: Deploy PostgreSQL operator
       type: string
     - name: DEPLOY_EA_POSTGRESQL
-      default: 'true'
+      default: 'false'
       description: Deploy postgresql
       type: string
     - name: APIC_API_KEY
@@ -556,7 +556,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260919-001"
+            REPO_SIGNATURE="JGR-20260927-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -1803,13 +1803,15 @@ spec:
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
+            NS="openshift-operators"
+
             echo "Creating namespace"
 
             oc create namespace pgsql
 
-            echo "Enabling Operator Group in namespace"
+            #echo "Enabling Operator Group in namespace"
 
-            oc apply -f resources/12d-pgsql-operatorgroup.yaml
+            #oc apply -f resources/12d-pgsql-operatorgroup.yaml
 
             echo "Installing postgresql operator"
             
@@ -1819,14 +1821,14 @@ spec:
             
             SUB_NAME=''
             
-            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment pgo -n pgsql --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
+            while [ -z "$SUB_NAME" ]; do sleep 5; SUB_NAME=$(oc get deployment pgo -n $NS --ignore-not-found -o jsonpath='{.metadata.labels.olm\.owner}'); done
 
             echo "Operator: " $SUB_NAME
 
             echo "Waiting for postgresql operator to be ready..."
 
             while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
-            csv/$SUB_NAME -n pgsql 2>/dev/null; do sleep 30; done
+            csv/$SUB_NAME -n $NS 2>/dev/null; do sleep 30; done
 
             echo "Postgresql operator is ready"
         - name: VERSION

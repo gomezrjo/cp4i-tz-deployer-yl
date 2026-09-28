@@ -361,7 +361,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260919-001"
+            REPO_SIGNATURE="JGR-20260927-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -3292,7 +3292,7 @@ spec:
                 SUB_NAME=$(oc get deployment ibm-appconnect-operator -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
                 INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "SwitchServer")] | .[] | select(.metadata.name == "default") | .spec.version')
                 INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "SwitchServer")] | .[] | select(.metadata.name == "default") | .spec.license.license')
-                ( echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/07-ace-switch-server-instance.yaml ;) | \
+                ( echo "cat <<EOF" ; cat instances/07-ace-switch-server-instance.yaml ;) | \
                     INST_NAME=${INST_NAME} \
                     INST_VER=${INST_VER} \
                     INST_LIC=${INST_LIC} \
@@ -3320,7 +3320,7 @@ spec:
 
             echo "Preparing ace designer instance manifest"
 
-            (echo "cat <<EOF" ; cat instances/$(params.CP4I_VERSION)/08-ace-designer-local-ai-instance.yaml ;) | \
+            (echo "cat <<EOF" ; cat instances/08-ace-designer-local-ai-instance.yaml ;) | \
                 INST_NAME=${INST_NAME} \
                 INST_VER=${INST_VER} \
                 INST_LIC=${INST_LIC} \
