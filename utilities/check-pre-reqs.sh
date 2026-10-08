@@ -5,7 +5,7 @@ if [ ! command -v awk &> /dev/null ]; then echo "awk could not be found"; exit 1
 echo "Checking OCP version..."
 OCP_VER=$(oc version -o json | jq -r '.openshiftVersion' | rev | cut -d'.' -f2- | rev)
 case "$OCP_VER" in
-    "4.16"|"4.18")
+    "4.18"|"4.20")
         echo "OCP version Pass"
         ;;
     *)

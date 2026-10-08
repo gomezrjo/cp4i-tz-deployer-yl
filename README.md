@@ -1,6 +1,6 @@
 # cp4i-tz-deployer-yl
 
-This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.2.0 for LTS/SC2 and v16.1.3 for CD) based on the CP4I end-to-end demo assets.
+This repo is intended to simplify the process to get a full CP4I demo environment for the latest versions of CP4I (v16.2.0 for LTS/SC2 and v16.2.1 for CD) based on the CP4I end-to-end demo assets.
 
 This repo does not include the extra elements like Instana and Logging, but the core CP4I capabilities and License Service are included now.
 
@@ -12,7 +12,7 @@ For these assets to work you will need an OCP cluster in TechZone using the **Op
 
 ![TechZone Collection](images/TZ_Collection_OCP_Clusters.png)
 
-When making the reservation in the new model you will need to fill out several pages and when you get to the **Configuration** section customize the values to meet the CP4I requirements using **v4.18** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. You can still use OCP v4.16 but I recommend you use the version mentioned above when possible, but note OCP v4.17 is not supported by CP4I anymore, so avoid this version. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions local and external ODF storage. The following image shows the recommended values to use.
+When making the reservation in the new model you will need to fill out several pages and when you get to the **Configuration** section customize the values to meet the CP4I requirements using **v4.20** for the OCP version and 5 nodes with 32 cores and 128 GB of memory to get the best results. You can still use OCP v4.16 but I recommend you use the version mentioned above when possible, but note OCP v4.17 is not supported by CP4I anymore, so avoid this version. Note that with the new OCP-V type of cluster in TechZone you do not need to select storage type because automatically provisions local and external ODF storage. The following image shows the recommended values to use.
 
 **OpenShift Cluster OCPv IBM Cloud:**
 ![TechZone Reservation OCP-V](images/TZ_Reservation_ocpv_2.png)
@@ -45,11 +45,11 @@ Once you confirm the cluster meets all the requirements, execute the following c
    oc apply -f resources/pipeline1.yaml
    ```
 
-Then decide if you want to install CP4I v16.2.0 or v16.1.3 and execute the corresponding command.
+Then decide if you want to install CP4I v16.2.0 or v16.2.1 and execute the corresponding command.
 
 <details>
 <summary>
-CP4I v16.1.3
+CP4I v16.2.1
 </summary>
 
 ```
@@ -77,7 +77,7 @@ tkn pipeline start cp4i-demo \
 ```
 </details>
 
-You do not have to add the version parameters when using CP4I v16.1.3 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
+You do not have to add the version parameters when using CP4I v16.2.1 because that is the default version. Now, by default the pipeline will use `KeyCloak` for EEM and EP, if you want to use **Local Security** instead, you can add the following parameter to one of the previous commands, making sure you add a `\` at the end of the last line in order to include the new line:
 
 ```
     --param EA_OIDC="false"

@@ -47,7 +47,7 @@ spec:
               oc create configmap pipeline-apicv12-demo-output -n default \
                 --from-literal=msg="Pipeline APICv12 Demo couldn't run. Check the PipelineRun logs for more details."
             else
-              if [[ "$(params.CP4I_VERSION)" == "SC2" ]]; then
+              if [[ "$(params.CP4I_VERSION)" == "SC2" ]] || [[ "$(params.CP4I_VERSION)" == "CD" ]]; then
                 if [[ "$(tasks.setup-workspace.results.output)" == "true" ]]; then
                   echo "Getting API Manager instance $INST_NAME access info to CMC..."
                   CMC_URL="https://$(oc get route ${INST_NAME}-admin -n $NS_NAME -o jsonpath='{.spec.host}')"
@@ -241,7 +241,7 @@ spec:
       description: Namespace to deploy Platform UI
       type: string
     - name: CP4I_VERSION
-      default: SC2
+      default: CD
       description: Version of CP4I Platform UI to deploy
       type: string
     - name: DEFAULT_SC
@@ -309,7 +309,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260927-001"
+            REPO_SIGNATURE="JGR-20260930-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -366,24 +366,6 @@ spec:
 
             printf true | tee $(results.output.path)
 
-            case "$(params.CP4I_VERSION)" in
-
-                "SC2")
-            
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.8.8.tgz
-            
-                    ;;
-            
-                "CD")
-                    
-                    tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.11.0.tgz
-                    
-                    ;;
-            
-            esac
-
-            chmod +x apic
-
             echo "Workspace for pipeline is ready"
         - name: VERSION
           value: latest
@@ -419,7 +401,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -492,7 +474,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -541,7 +523,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -580,7 +562,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -598,7 +580,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -652,7 +634,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -736,7 +718,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -759,8 +741,6 @@ spec:
             CATALOG_NAME="ibm-datapower-operator-catalog"
 
             oc apply -f catalog-sources/$(params.CP4I_VERSION)/$MANIFEST_NAME
-
-            #oc apply -f catalog-sources/SC2/05-datapower-apicv12-catalog-source.yaml
 
             echo "Waiting for datapower catalog source to be ready..."
             
@@ -820,7 +800,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -905,7 +885,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -945,7 +925,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -965,16 +945,16 @@ spec:
 
             SUB_NAME=$(oc get deployment ibm-apiconnect -n openshift-operators -o jsonpath='{.metadata.labels.olm\.owner}')
 
-            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.version')
-
-            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.license.license')
-
             echo "Confirming APIC Operator is ready"
 
             while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
             csv/$SUB_NAME -n $NS_NAME 2>/dev/null; do sleep 30; done
-            
+
             echo "Getting info from CSV..."
+            
+            INST_VER=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.version')
+
+            INST_LIC=$(oc get csv $SUB_NAME -o json | jq -r '.metadata.annotations."alm-examples" | fromjson | [.[] | select(.kind == "APIConnectCluster")] | .[] | select(.metadata.name == "small") | .spec.license.license')
 
             echo "Preparing apic management instance manifest"
 
@@ -1014,7 +994,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -1248,7 +1228,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -1375,7 +1355,28 @@ spec:
                 USER_URL=$(jq -r --arg obj_name $USER_NAME '.results[] | select(.name == $obj_name) | .url' apic-response-data.json)
                 if [ -z "$USER_URL" ]; then
                   echo "Generating user password..."
-                  USER_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-');
+                  length="16" # Default length: 16 characters (min 8)
+                  charset='A-Za-z0-9!$#%&()+=_?-'
+                  #charset='A-Za-z0-9!$#%&()+=-_?'
+                  password=""
+                  while true; do
+                    password=$(LC_ALL=C tr -dc "$charset" < /dev/urandom | dd bs=1 count="$length" 2>/dev/null)
+                    if echo "$password" | grep -qE '(.)\1\1'; then
+                      continue
+                    fi
+                    categories=0
+                    echo "$password" | grep -q '[a-z]' && ((categories++))
+                    echo "$password" | grep -q '[A-Z]' && ((categories++))
+                    echo "$password" | grep -q '[0-9]' && ((categories++))
+                    #echo "$password" | grep -q '[!$#%&()+=\_?-]' && ((categories++))
+                    echo "$password" | grep -q '[!$#%&()+=_?-]' && ((categories++))
+                    if [ "$categories" -ge 2 ]; then
+                    echo "$password"
+                    break
+                    fi
+                  done
+                  #USER_PWD=$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-');
+                  USER_PWD=$password
                   echo "Creating User Definition..."
                   ( echo "cat <<EOF" ; cat templates/template-apic-user.json ;) | \
                     USER_NAME=${USER_NAME} \
@@ -1521,7 +1522,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -1611,7 +1612,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -1808,7 +1809,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -1894,7 +1895,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2171,7 +2172,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2254,7 +2255,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2533,7 +2534,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2618,7 +2619,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -2898,7 +2899,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3039,7 +3040,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3126,7 +3127,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3204,7 +3205,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3577,7 +3578,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3655,7 +3656,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3882,7 +3883,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -3966,7 +3967,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -4194,7 +4195,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -4275,7 +4276,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -4488,7 +4489,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -4688,7 +4689,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
@@ -4888,7 +4889,7 @@ spec:
       when:
         - input: "$(params.CP4I_VERSION)"
           operator: in
-          values: ["SC2"]
+          values: ["SC2", "CD"]
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]

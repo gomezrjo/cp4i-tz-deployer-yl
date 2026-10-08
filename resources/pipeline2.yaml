@@ -519,6 +519,10 @@ spec:
       default: 'false'
       description: Deploy postgresql
       type: string
+    - name: ENABLE_E2E_MON
+      default: 'false'
+      description: Enable End to End Monitoring in Capabilities
+      type: string
     - name: APIC_API_KEY
       default: ''
       description: API Key to access APIC
@@ -556,7 +560,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260927-001"
+            REPO_SIGNATURE="JGR-20260930-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -728,8 +732,8 @@ spec:
                         CP4I_VER="${CP4I_VER_NUM}"
                         CP4I_VER="SC2"
                         ;;
-                    "16.1.3")
-                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-10.0.11.0.tgz
+                    "16.2.1")
+                        tar -xvzf cp4i-deployer-helper/extras/toolkit-linux-12.1.1.3.tgz
                         chmod +x apic
                         CP4I_VER="CD"
                         ;;
@@ -1870,9 +1874,16 @@ spec:
 
             echo "Waiting for postgresql database instance to be ready..."
 
-            while ! oc wait --for=jsonpath='{.status.conditions[1].status}'=True
-            -l "postgres-operator.crunchydata.com/role=master" pods -n
-            pgsql 2>/dev/null; do sleep 30; done
+            #while ! oc wait --for=jsonpath='{.status.conditions[1].status}'=True
+            #-l "postgres-operator.crunchydata.com/role=master" pods -n
+            #pgsql 2>/dev/null; do sleep 30; done
+
+            #while ! oc wait --for=jsonpath='{.items[0].status.conditions[?(.type=="Ready")].status}'=True
+            #-l "postgres-operator.crunchydata.com/role=master" pods -n 
+            #pgsql 2>/dev/null; do sleep 30; done
+
+            while ! oc wait --for=condition=Ready -l "postgres-operator.crunchydata.com/role=master" pods \
+            -n pgsql 2>/dev/null; do sleep 30; done
 
             echo "Postgresql database instance is ready"
         - name: VERSION
@@ -3137,7 +3148,7 @@ spec:
 
                 "SC2")
             
-                    IR_STATUS_PHASE='Ready'
+                    IR_STATUS_PHASE='Stopped'
             
                     ;;
             
@@ -3996,10 +4007,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
@@ -4087,9 +4099,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
@@ -4179,9 +4193,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
@@ -4407,9 +4423,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
@@ -4619,15 +4637,23 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
             echo "Setting apic variables"
 
             APIC_INST_NAME='apim-demo'
+
+            APIC_NAMESPACE='$(params.CP4I_NAMESPACE)'
+
+            APIC_REALM='admin/default-idp-1'
+
+            APIC_ADMIN_USER='admin'
 
             APIC_ORG='cp4i-demo-org'
 
@@ -4639,7 +4665,31 @@ spec:
 
             APPDEV_FNAME='Andre'
 
-            APIC_MGMT_SERVER=$(oc get route "${APIC_INST_NAME}-mgmt-platform-api" -n $(params.CP4I_NAMESPACE) -o jsonpath="{.spec.host}")
+            APIC_MGMT_SERVER=$(oc get route "${APIC_INST_NAME}-mgmt-platform-api" -n $APIC_NAMESPACE -o jsonpath="{.spec.host}")
+
+            APIC_ADMIN_PWD=$(oc get secret "${APIC_INST_NAME}-mgmt-admin-pass" -n $APIC_NAMESPACE -o jsonpath="{.data.password}"| base64 -d)
+
+            echo "Login to APIC with CMC Admin User..."
+
+            ./apic client-creds:clear $APIC_CLI_FLAG
+
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+
+            #APIC_RESP=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER)
+
+            #echo "APIC ORGS:LIST -> $APIC_RESP"
+
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
+            
+            #PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+            
+            PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG  --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+            
+            #else
+            
+            #    PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
+            
+            #fi      
 
             echo "Login to APIC with CP4I Admin User using API Key..."
 
@@ -4647,15 +4697,7 @@ spec:
             
             ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
 
-            APIC_RESP=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER)
-
-            echo "APIC ORGS:LIST -> $APIC_RESP"
-
-            #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then 
-                PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
-            #else
-            #    PORG_URL=$(echo "$APIC_RESP" | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')
-            #fi      
+            echo "Getting User Registry URL..."
 
             APIC_RESP=$(./apic user-registries:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG)
 
@@ -4811,9 +4853,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             ./apic --accept-license --live-help=false $APIC_CLI_FLAG
 
@@ -4821,25 +4865,43 @@ spec:
 
             APIC_INST_NAME='apim-demo'
 
-            APIC_ORG='cp4i-demo-org'
+            APIC_NAMESPACE='$(params.CP4I_NAMESPACE)'
 
-            APIC_MGMT_SERVER=$(oc get route "${APIC_INST_NAME}-mgmt-platform-api" -n $(params.CP4I_NAMESPACE) -o jsonpath="{.spec.host}")
+            APIC_REALM='admin/default-idp-1'
+
+            APIC_ADMIN_USER='admin'
+
+            APIC_ORG='cp4i-demo-org'
 
             CATALOG_NAME="demo"
 
             CONSUMER_ORG_NAME='AppDevOrg'
+
+            APIC_MGMT_SERVER=$(oc get route "${APIC_INST_NAME}-mgmt-platform-api" -n $APIC_NAMESPACE -o jsonpath="{.spec.host}")
+
+            APIC_ADMIN_PWD=$(oc get secret "${APIC_INST_NAME}-mgmt-admin-pass" -n $APIC_NAMESPACE -o jsonpath="{.data.password}"| base64 -d)
+
+            echo "Login to APIC with CMC Admin User..."
+
+            ./apic client-creds:clear $APIC_CLI_FLAG
+
+            ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --realm $APIC_REALM -u $APIC_ADMIN_USER -p $APIC_ADMIN_PWD
+
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then
+            
+            PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
+            
+            #else
+            
+            #    PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')     
+            
+            #fi 
 
             echo "Login to APIC with CP4I Admin User using API Key..."
 
             ./apic client-creds:clear $APIC_CLI_FLAG
             
             ./apic login $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --sso --context provider --apiKey $(params.APIC_API_KEY)
-
-            #if [ "$(tasks.check-cp4i-version.results.output)" = "CD" ]; then
-                PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $3}')
-            #else
-            #    PORG_URL=$(./apic orgs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER | awk -v porgname="${APIC_ORG}" '$1 == porgname {print $4}')     
-            #fi 
 
             CATALOG_URL=$(./apic catalogs:list $APIC_CLI_FLAG --server $APIC_MGMT_SERVER --org $APIC_ORG | awk -v catname="${CATALOG_NAME}" '$1 == catname {print $2}')
 
@@ -5215,9 +5277,11 @@ spec:
 
             APIC_CLI_FLAG=""
 
-            if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
-                APIC_CLI_FLAG="--insecure-skip-tls-verify"
-            fi
+            #if [ "$(tasks.check-cp4i-version.results.output)" = "SC2" ]; then 
+            
+            APIC_CLI_FLAG="--insecure-skip-tls-verify"
+            
+            #fi
 
             echo "Setting apic variables"
 

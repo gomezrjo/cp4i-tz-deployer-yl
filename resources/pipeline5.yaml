@@ -82,7 +82,7 @@ spec:
     - name: IBM_ENTITLEMENT_KEY_ID
       default: a65ac528-bbca-1425-8d07-fde9e2f1ff70
       type: string
-    - name: IDIG_IMG_REGISTRY_BASE_PATH
+    - name: IDIG_IMG_REGISTRY_ADDRESS
       default: ''
       description: Private Image Registry with IDIG images
       type: string
@@ -120,7 +120,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260927-001"
+            REPO_SIGNATURE="JGR-20260930-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -141,7 +141,7 @@ spec:
 
             echo "Checking IDIG Private Image Registry parameters were provided."
             
-            if  [[ -z "$(params.IDIG_IMG_REGISTRY_BASE_PATH)" ]] ||
+            if  [[ -z "$(params.IDIG_IMG_REGISTRY_ADDRESS)" ]] ||
                 [[ -z "$(params.IDIG_IMG_REGISTRY_NAMESPACE)" ]] ||
                 [[ -z "$(params.IDIG_REGISTRY_USER_NAME)" ]] || 
                 [[ -z "$(params.IDIG_REGISTRY_USER_PWD)" ]]; then 
@@ -641,7 +641,7 @@ spec:
 
             NS_NAME=$(params.IDIG_NAMESPACE)
 
-            IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_BASE_PATH)
+            IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_ADDRESS)
 
             USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
 
@@ -676,7 +676,7 @@ spec:
 
             NS_NAME=$(params.IDIG_NAMESPACE)
 
-            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_BASE_PATH)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_ADDRESS)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
@@ -785,7 +785,7 @@ spec:
 
             INST_NAME="idig"
 
-            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_BASE_PATH)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_ADDRESS)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
 
             OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE)
 
