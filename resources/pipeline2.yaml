@@ -516,7 +516,7 @@ spec:
       description: Deploy PostgreSQL operator
       type: string
     - name: DEPLOY_EA_POSTGRESQL
-      default: 'false'
+      default: 'true'
       description: Deploy postgresql
       type: string
     - name: ENABLE_E2E_MON
@@ -560,7 +560,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260930-001"
+            REPO_SIGNATURE="JGR-20261013-001"
 
             echo "Setting up workspace for pipeline"
             
@@ -1874,16 +1874,7 @@ spec:
 
             echo "Waiting for postgresql database instance to be ready..."
 
-            #while ! oc wait --for=jsonpath='{.status.conditions[1].status}'=True
-            #-l "postgres-operator.crunchydata.com/role=master" pods -n
-            #pgsql 2>/dev/null; do sleep 30; done
-
-            #while ! oc wait --for=jsonpath='{.items[0].status.conditions[?(.type=="Ready")].status}'=True
-            #-l "postgres-operator.crunchydata.com/role=master" pods -n 
-            #pgsql 2>/dev/null; do sleep 30; done
-
-            while ! oc wait --for=condition=Ready -l "postgres-operator.crunchydata.com/role=master" pods \
-            -n pgsql 2>/dev/null; do sleep 30; done
+            while ! oc wait --for=condition=Ready -l "postgres-operator.crunchydata.com/role=master" pods -n pgsql 2>/dev/null; do sleep 30; done
 
             echo "Postgresql database instance is ready"
         - name: VERSION

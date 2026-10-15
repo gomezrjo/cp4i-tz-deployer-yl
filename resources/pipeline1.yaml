@@ -365,7 +365,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20260930-001"
+            REPO_SIGNATURE="JGR-20261013-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -904,6 +904,11 @@ spec:
             while ! oc wait --for=jsonpath='{.status.phase}'=Succeeded 
             csv/$SUB_NAME 2>/dev/null; do sleep 30; done
 
+            #if [[ "$(params.CP4I_VERSION)" == "CD" ]]; then
+            #  echo "Configure SC for Integration Services"
+            #  oc patch configmap ibm-integration-services-config -n openshift-operators --type=merge --patch '{"data":{"storageClass":"'$(params.DEFAULT_SC)'"}}'
+            #fi
+
             echo "Platform navigator operator is ready"
         - name: VERSION
           value: latest
@@ -963,15 +968,15 @@ spec:
 
             echo "Platform navigator instance is ready"
 
-            echo "Apply KeyCloak workaround"
+            #echo "Apply KeyCloak workaround"
             
-            oc apply -f resources/99-keycloak-workaround.yaml
+            #oc apply -f resources/99-keycloak-workaround.yaml
 
-            while ! oc wait --for=condition=Ready
-            pod/cs-keycloak-0 -n ibm-common-services 2>/dev/null;
-            do sleep 30; done
+            #while ! oc wait --for=condition=Ready
+            #pod/cs-keycloak-0 -n ibm-common-services 2>/dev/null;
+            #do sleep 30; done
 
-            echo "KeyCloak has been updated"
+            #echo "KeyCloak has been updated"
         - name: VERSION
           value: latest
       runAfter:
@@ -1299,6 +1304,8 @@ spec:
 
             E2EM_CONFIGMAP="$E2EM_SVC_ACCT-ca"
 
+            E2EM_EXTRA_SECRET="$E2EM_SVC_ACCT-ca-secret"
+
             echo "Preparing E2EM Service Account manifest..."
             
             (echo "cat <<EOF" ; cat resources/17a-integration-monitoring-service-account.yaml ;) | \
@@ -1337,6 +1344,14 @@ spec:
                 oc annotate configmap $E2EM_CONFIGMAP -n $(params.CP4I_NAMESPACE) service.beta.openshift.io/inject-cabundle=true
             else
                 echo "ConfigMap $E2EM_CONFIGMAP already exists."
+            fi
+
+            if [[ -z "$(oc get secret $E2EM_EXTRA_SECRET -n $(params.CP4I_NAMESPACE) --no-headers --ignore-not-found)" ]]; then
+                echo "Creating Extra E2EM Secret for CA Cert..."
+                oc get configmap openshift-service-ca.crt -o jsonpath="{.data['service-ca\.crt']}" > e2em-ca.crt
+                oc create secret generic $E2EM_EXTRA_SECRET --from-file=e2em-ca.crt=e2em-ca.crt  --namespace=$(params.CP4I_NAMESPACE)
+            else
+                echo "Secret $E2EM_EXTRA_SECRET already exists."
             fi
 
             echo "E2EM security has been configured."
