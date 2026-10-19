@@ -120,7 +120,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20261013-001"
+            REPO_SIGNATURE="JGR-20261017-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -390,6 +390,41 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
+    - name: create-private-registry-key
+      params:
+        - name: SCRIPT
+          value: >-
+            set -o xtrace
+
+            NS_NAME=$(params.IDIG_NAMESPACE)
+
+            IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_ADDRESS)
+
+            USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
+
+            E_KEY=$(params.IDIG_REGISTRY_USER_PWD)
+
+            if [[ -z "$(oc get secret idig-registry-secret -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
+              echo "Creating idig-registry-secret in namespace $NS_NAME..."
+              oc create secret docker-registry idig-registry-secret \
+                --docker-username=$USER_NAME \
+                --docker-password=$E_KEY \
+                --docker-server=$IDIG_IMG_REGISTRY \
+                --namespace=$NS_NAME
+            else
+              echo "idig-registry-secret already exists in namespace $NS_NAME"
+            fi
+        - name: VERSION
+          value: latest
+      runAfter:
+        - define-idig-certificates
+      taskRef:
+        kind: Task
+        name: jgr-task-0.2
+      when:
+        - input: "$(tasks.setup-workspace.results.output)"
+          operator: in
+          values: ["true"]
     - name: apic-operator-installation
       params:
         - name: SCRIPT
@@ -397,6 +432,8 @@ spec:
             set -o xtrace
 
             NS_NAME=$(params.IDIG_NAMESPACE)
+
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_ADDRESS)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
 
             cd workspace/cp4i-ws/cp4i-deployer-helper
 
@@ -408,6 +445,7 @@ spec:
 
             ( echo "cat <<EOF" ; cat resources/85c-idig-apic-operator.yaml ;) | \
                 NS_NAME=${NS_NAME} \
+                IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY} \
                 sh > idig-apic-operator.yaml
 
             echo "Deploying APIC operator..."
@@ -425,7 +463,7 @@ spec:
         - name: VERSION
           value: latest
       runAfter:
-        - define-idig-certificates
+        - create-private-registry-key
       taskRef:
         kind: Task
         name: jgr-task-0.2
@@ -467,7 +505,7 @@ spec:
 
             echo "Create config file for SAN"
 
-            ( echo "cat <<EOF" ; cat ../templates/template-apic-valkey-tls.conf ;) | \
+            ( echo "cat <<EOF" ; cat ../templates/template-idig-valkey-tls.conf ;) | \
               NAMESPACE=${NAMESPACE} \
               sh > san.cnf
 
@@ -475,19 +513,32 @@ spec:
 
             openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out tls.crt -days 365 -sha256 -extfile san.cnf -extensions v3_req
 
-            # Create the TLS secrete
-            
-            echo "Creating TLS secret ${SECRET_NAME} in namespace ${NAMESPACE}"
-            
-            oc create namespace ${NAMESPACE} --dry-run=client -o yaml | oc apply -f -
-            
-            oc create secret generic ${SECRET_NAME} \
-              --from-file=ca.crt=ca.crt \
-              --from-file=tls.crt=tls.crt \
-              --from-file=tls.key=tls.key \
-              -n ${NAMESPACE}
+            echo "Display the certificate details for verification"
 
-            echo "Secret ${SECRET_NAME} created in namespace ${NAMESPACE}"
+            echo ""
+            
+            echo "Certificate generated with the following SANs:"
+            
+            openssl x509 -in tls.crt -text -noout | grep -A 1 "Subject Alternative Name"
+            
+            echo ""
+
+            # Check if secret exists and delete it
+            
+            if [[ -n "$(oc get secret "${SECRET_NAME}" -n "${NAMESPACE}" --no-headers --ignore-not-found=true)" ]]; then
+              echo "Warning: Secret already exists..."
+              #oc delete secret "${SECRET_NAME}" -n "${NAMESPACE}"
+            else
+              # Create the TLS secret
+              echo "Creating TLS secret ${SECRET_NAME} in namespace ${NAMESPACE}"
+              oc create namespace ${NAMESPACE} --dry-run=client -o yaml | oc apply -f -            
+              oc create secret generic ${SECRET_NAME} \
+                --from-file=ca.crt=ca.crt \
+                --from-file=tls.crt=tls.crt \
+                --from-file=tls.key=tls.key \
+                -n ${NAMESPACE}
+              echo "Secret ${SECRET_NAME} created in namespace ${NAMESPACE}"
+            fi
 
             cd ..
             
@@ -497,19 +548,22 @@ spec:
             
             NS_NAME=$(params.IDIG_NAMESPACE)
 
+            IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_ADDRESS)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
+
             echo "Deploying Valkey CRDs..."
 
             oc apply --server-side -f resources/70a-apic-valkey-crds.yaml
 
             echo "Preparing YAML file..."
 
-            ( echo "cat <<EOF" ; cat resources/70b-apic-valkey-operator.yaml ;) | \
+            ( echo "cat <<EOF" ; cat resources/85j-idig-valkey-operator.yaml ;) | \
                 NS_NAME=${NS_NAME} \
-                sh > apic-valkey-operator.yaml
+                IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY} \
+                sh > idig-valkey-operator.yaml
 
             echo "Deploying Valkey operator..."
 
-            oc apply --server-side --force-conflicts -f apic-valkey-operator.yaml
+            oc apply --server-side --force-conflicts -f idig-valkey-operator.yaml
 
             echo "Waiting for Operator to be ready..."
 
@@ -526,19 +580,30 @@ spec:
               echo "Valkey valkey-secret already exists in namespace $NS_NAME"
             fi
 
+            echo "Defining Valkey module configuration..."
+
+            oc apply -f resources/85h-idig-valkey-extra-config.yaml -n $NS_NAME
+
             echo "Preparing YAML file..."
 
-            ( echo "cat <<EOF" ; cat resources/70c-apic-valkey-standalone-cr.yaml ;) | \
-                INST_NAME=${INST_NAME} \
-                sh > apic-valkey-standalone-cr.yaml
+            export INST_NAME=${INST_NAME}
+
+            export OCP_BLOCK_STORAGE=${OCP_BLOCK_STORAGE}
+            
+            export IDIG_IMG_REGISTRY=${IDIG_IMG_REGISTRY}
+            
+            envsubst '${INST_NAME} ${IDIG_IMG_REGISTRY} ${OCP_BLOCK_STORAGE}' < resources/85i-idig-valkey-standalone-cr.yaml > idig-valkey-standalone-cr.yaml
+
 
             echo "Deploying Valkey instance..."
 
-            oc apply -f apic-valkey-standalone-cr.yaml -n $NS_NAME
+            oc apply -f idig-valkey-standalone-cr.yaml -n $NS_NAME
 
             echo "Cleaning up temp file..."
             
-            rm -f apic-valkey-operator.yaml
+            rm -f idig-valkey-operator.yaml
+
+            rm -f idig-valkey-standalone-cr.yaml
 
             echo "Waiting for Valkey instance to be ready..."
 
@@ -561,113 +626,6 @@ spec:
           values: ["true"]
       workspaces:
         - name: cp4i-ws
-    - name: dp-nanogateway-operator-installation
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            NS_NAME=$(params.IDIG_NAMESPACE)
-
-            cd workspace/cp4i-ws/cp4i-deployer-helper
-
-            echo "Getting OCP Version..."
-
-            oc version -o json > ocp_info.json
-            
-            TMP_STR=$(jq -r '.openshiftVersion' ocp_info.json)
-            
-            OCP_CURR_VER="${TMP_STR%.*}"
-            
-            OCP_MIN_VER="4.18"
-
-            if awk -v n1="$OCP_CURR_VER" -v n2="$OCP_MIN_VER" 'BEGIN {exit !(n1 > n2)}'; then
-              echo "OCP is at the right version, the API Gateway is already available..."
-            else
-              echo "Installing the API Gateway..."
-              oc apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
-            fi
-
-            rm -f ocp_info.json
-
-            echo "Deploying Nano Gateway CRDs..."
-            
-            oc apply -f resources/85d-idig-nanogw-crds.yaml
-
-            echo "Preparing YAML file..."
-
-            ( echo "cat <<EOF" ; cat resources/85e-idig-nanogw-operator.yaml ;) | \
-                NS_NAME=${NS_NAME} \
-                sh > idig-nano-gwy-operator.yaml
-
-            echo "Deploying Nano Gateway operator..."
-
-            oc apply -f idig-nano-gwy-operator.yaml
-
-            echo "Waiting for Operator to be ready..."
-
-            while ! oc wait --for=jsonpath='{.status.conditions[0].status}'=True \
-                  deployment/datapower-nano-operator -n $NS_NAME 2>/dev/null; do 
-              sleep 5
-            done
-
-            echo "Enabling WildCards for Routes..."
-
-            oc patch ingresscontroller default -n openshift-ingress-operator --type=merge -p '{"spec":{"routeAdmission":{"wildcardPolicy":"WildcardsAllowed"}}}'
-
-            echo "Cleaning up temp file..."
-
-            rm -f idig-nano-gwy-operator.yaml
-
-            echo "Nano Gateway operator is Ready..."
-        - name: VERSION
-          value: latest
-      runAfter:
-        - valkey-instance-deployment
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: cp4i-ws
-    - name: create-private-registry-key
-      params:
-        - name: SCRIPT
-          value: >-
-            set -o xtrace
-
-            NS_NAME=$(params.IDIG_NAMESPACE)
-
-            IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_ADDRESS)
-
-            USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
-
-            E_KEY=$(params.IDIG_REGISTRY_USER_PWD)
-
-            if [[ -z "$(oc get secret idig-registry-secret -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
-              echo "Creating idig-registry-secret in namespace $NS_NAME..."
-              oc create secret docker-registry idig-registry-secret \
-                --docker-username=$USER_NAME \
-                --docker-password=$E_KEY \
-                --docker-server=$IDIG_IMG_REGISTRY \
-                --namespace=$NS_NAME
-            else
-              echo "idig-registry-secret already exists in namespace $NS_NAME"
-            fi
-        - name: VERSION
-          value: latest
-      runAfter:
-        - dp-nanogateway-operator-installation
-      taskRef:
-        kind: Task
-        name: jgr-task-0.2
-      when:
-        - input: "$(tasks.setup-workspace.results.output)"
-          operator: in
-          values: ["true"]
     - name: idig-operators-installation
       params:
         - name: SCRIPT
@@ -678,7 +636,30 @@ spec:
 
             IDIG_IMG_REGISTRY="$(params.IDIG_IMG_REGISTRY_ADDRESS)/$(params.IDIG_IMG_REGISTRY_NAMESPACE)"
 
+            echo "Getting OCP Version..."
+
+            oc version -o json > ocp_info.json
+            
+            TMP_STR=$(jq -r '.openshiftVersion' ocp_info.json)
+            
+            OCP_CURR_VER="${TMP_STR%.*}"
+            
+            OCP_MIN_VER="4.19"
+            
+            if (( $(echo "$OCP_CURR_VER < $OCP_MIN_VER" | bc -l) )); then
+              echo "Installing the API Gateway..."
+              oc apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+            else
+              echo "OCP is at the right version, the API Gateway is already available..."
+            fi
+
+            rm -f ocp_info.json
+
             cd workspace/cp4i-ws/cp4i-deployer-helper
+
+            echo  "Deploying Nano Gateway CRDs..."
+
+            oc apply -f resources/85d-idig-nanogw-crds.yaml            
 
             echo "Preparing YAML file..."
 
@@ -717,11 +698,15 @@ spec:
               sleep 5
             done
 
+            echo "Enabling WildCards for Routes..."
+            
+            oc patch ingresscontroller default -n openshift-ingress-operator --type=merge -p '{"spec":{"routeAdmission":{"wildcardPolicy":"WildcardsAllowed"}}}'
+
             echo "IDIG operators are Ready..."
         - name: VERSION
           value: latest
       runAfter:
-        - create-private-registry-key
+        - valkey-instance-deployment
       taskRef:
         kind: Task
         name: jgr-task-0.2
@@ -742,6 +727,8 @@ spec:
             WATSONX_API_KEY=$(params.WATSONX_API_KEY)
             
             WATSONX_PROJECT_ID=$(params.WATSONX_PROJECT_ID)
+
+            cd workspace/cp4i-ws/cp4i-deployer-helper
 
             echo "Preparing YAML file..." "BLUE"
 
@@ -773,6 +760,8 @@ spec:
         - input: "$(params.WATSONX_PROJECT_ID)"
           operator: notin
           values: [""]
+      workspaces:
+        - name: cp4i-ws
     - name: idig-cluster-inst-deployment
       params:
         - name: SCRIPT

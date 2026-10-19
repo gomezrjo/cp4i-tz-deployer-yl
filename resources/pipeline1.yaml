@@ -365,7 +365,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20261013-001"
+            REPO_SIGNATURE="JGR-20261017-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -3017,6 +3017,12 @@ spec:
 
             echo "Preconfiguring Queue Managers for Native HA..."
 
+            MQ_MIN_MAJOR_VER=10
+
+            MQ_MIN_MINOR_VER=0
+            
+            MQ_MIN_MODE_VER=1
+
             QMGR_NAME='qmgr-native-ha'
 
             QMGR_CHANNEL="MTLS.SVRCONN"
@@ -3112,6 +3118,25 @@ spec:
                 OCP_BLOCK_STORAGE=$(params.OCP_BLOCK_STORAGE) \
                 sh > 12-qmgr-native-ha-instance.yaml
 
+            MQ_VER_NO_REL="${MQ_VERSION%%-*}"
+
+            MQ_MAJOR_VER="${MQ_VER_NO_REL%%.*}"
+
+            TMP="${MQ_VER_NO_REL#*.}"
+
+            MQ_MINOR_VER="${TMP%%.*}"
+
+            MQ_MODE_VER="${TMP#*.}"
+
+            MQ_MODE_VER="${MQ_MODE_VER%%.*}" 
+
+            if [[ "$MQ_MAJOR_VER" -gt $MQ_MIN_MAJOR_VER ]] || \
+              [[ "$MQ_MAJOR_VER" -eq $MQ_MIN_MAJOR_VER && "$MQ_MINOR_VER" -gt $MQ_MIN_MINOR_VER ]] || \
+              [[ "$MQ_MAJOR_VER" -eq $MQ_MIN_MAJOR_VER && "$MQ_MINOR_VER" -eq $MQ_MIN_MINOR_VER && "$MQ_MODE_VER" -ge $MQ_MIN_MODE_VER ]]; then
+              echo "Enabling Pod Disruption Budget mode..."
+              yq -i e '.spec.queueManager.availability.podDisruptionBudget.enabled = true' 12-qmgr-native-ha-instance.yaml
+            fi
+            
             echo "Deploying queue manager instance"
 
             oc apply -f 12-qmgr-native-ha-instance.yaml -n $(params.MQ_NAMESPACE)
