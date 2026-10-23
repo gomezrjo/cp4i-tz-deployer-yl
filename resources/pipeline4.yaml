@@ -309,7 +309,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20261017-001"
+            REPO_SIGNATURE="JGR-20261023-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -2569,7 +2569,7 @@ spec:
             echo "Defining wM API Gateway Admin password..."
 
             if [[ -z "$(oc get secret wmapigateway-admin-secret -n ${NS_NAME} --no-headers --ignore-not-found=true)" ]]; then
-              oc create secret generic wmapigateway-admin-secret --from-literal=password="mypassword"
+              oc create secret generic wmapigateway-admin-secret -n ${NS_NAME} --from-literal=password="mypassword"
             else
               echo "wM API Gateway wmapigateway-admin-secret already exists in namespace $NS_NAME"
             fi

@@ -120,7 +120,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20261017-001"
+            REPO_SIGNATURE="JGR-20261023-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -398,19 +398,40 @@ spec:
 
             NS_NAME=$(params.IDIG_NAMESPACE)
 
+            SECRET_NAME="idig-registry-secret"
+
             IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_ADDRESS)
 
             USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
 
             E_KEY=$(params.IDIG_REGISTRY_USER_PWD)
 
+            DEPLOYER_SECRET=""
+
+            if [[ "$IDIG_IMG_REGISTRY" == "image-registry.openshift-image-registry.svc:5000" ]] &&
+              [[ "$USER_NAME" == "kubeadmin" ]]; then
+              DEPLOYER_SECRET=$(oc get secret -n $NS_NAME --no-headers | awk '/deployer-dockercfg/{print $1}')
+              if [[ -n "$DEPLOYER_SECRET" ]]; then
+                oc get secret $DEPLOYER_SECRET -n $NS_NAME -o jsonpath='{.data.\.dockercfg}' | base64 -d > dockercfg.json
+              else
+                echo "DockerCfg Deployer secret not available. Using temp token instead."
+              fi
+            fi
+
             if [[ -z "$(oc get secret idig-registry-secret -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
               echo "Creating idig-registry-secret in namespace $NS_NAME..."
-              oc create secret docker-registry idig-registry-secret \
-                --docker-username=$USER_NAME \
-                --docker-password=$E_KEY \
-                --docker-server=$IDIG_IMG_REGISTRY \
-                --namespace=$NS_NAME
+              if [[ -z "$DEPLOYER_SECRET" ]]; then
+                oc create secret docker-registry $SECRET_NAME \
+                  --docker-username=$USER_NAME \
+                  --docker-password=$E_KEY \
+                  --docker-server=$IDIG_IMG_REGISTRY \
+                  --namespace=$NS_NAME
+              else
+                oc create secret generic $SECRET_NAME \
+                    -n $NS_NAME \
+                    --from-file=.dockercfg=dockercfg.json \
+                    --type=kubernetes.io/dockercfg
+              fi
             else
               echo "idig-registry-secret already exists in namespace $NS_NAME"
             fi
