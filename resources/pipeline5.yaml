@@ -408,6 +408,8 @@ spec:
 
             DEPLOYER_SECRET=""
 
+            cd workspace/cp4i-ws/cp4i-deployer-helper
+
             if [[ "$IDIG_IMG_REGISTRY" == "image-registry.openshift-image-registry.svc:5000" ]] &&
               [[ "$USER_NAME" == "kubeadmin" ]]; then
               DEPLOYER_SECRET=$(oc get secret -n $NS_NAME --no-headers | awk '/deployer-dockercfg/{print $1}')
@@ -446,6 +448,8 @@ spec:
         - input: "$(tasks.setup-workspace.results.output)"
           operator: in
           values: ["true"]
+      workspaces:
+        - name: cp4i-ws
     - name: apic-operator-installation
       params:
         - name: SCRIPT
