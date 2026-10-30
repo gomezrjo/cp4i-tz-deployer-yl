@@ -120,7 +120,7 @@ spec:
           value: >-
             set -o xtrace
 
-            REPO_SIGNATURE="JGR-20261023-001"
+            REPO_SIGNATURE="JGR-20261030-001"
 
             echo "Setting up workspace for pipeline"
 
@@ -400,6 +400,8 @@ spec:
 
             SECRET_NAME="idig-registry-secret"
 
+            SA_NAME="idig-registry-sa"
+
             IDIG_IMG_REGISTRY=$(params.IDIG_IMG_REGISTRY_ADDRESS)
 
             USER_NAME=$(params.IDIG_REGISTRY_USER_NAME)
@@ -412,31 +414,34 @@ spec:
 
             if [[ "$IDIG_IMG_REGISTRY" == "image-registry.openshift-image-registry.svc:5000" ]] &&
               [[ "$USER_NAME" == "kubeadmin" ]]; then
-              DEPLOYER_SECRET=$(oc get secret -n $NS_NAME --no-headers | awk '/deployer-dockercfg/{print $1}')
-              if [[ -n "$DEPLOYER_SECRET" ]]; then
-                oc get secret $DEPLOYER_SECRET -n $NS_NAME -o jsonpath='{.data.\.dockercfg}' | base64 -d > dockercfg.json
+              if [[ -z "$(oc get serviceaccount $SA_NAME -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
+                echo "Creating ServiceAccount $SA_NAME in namespace $NS_NAME..."
+                oc create serviceaccount $SA_NAME -n $NS_NAME
               else
-                echo "DockerCfg Deployer secret not available. Using temp token instead."
+                echo "ServiceAccount $SA_NAME already exists, reusing it."
               fi
+              echo "Grantting image-puller rights so the SA can pull from the internal registry"
+              oc policy add-role-to-user system:image-puller system:serviceaccount:$NS_NAME:$SA_NAME -n $NS_NAME
+              echo "Generating long-lived token for $SA_NAME..."
+              oc create token $SA_NAME -n $NS_NAME --duration=87600h
+              E_KEY=$(oc create token $SA_NAME -n $NS_NAME --duration=87600h)
+              IDIG_IMG_REGISTRY="image-registry.openshift-image-registry.svc:5000"
+              USER_NAME=$SA_NAME
             fi
 
-            if [[ -z "$(oc get secret idig-registry-secret -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
-              echo "Creating idig-registry-secret in namespace $NS_NAME..."
-              if [[ -z "$DEPLOYER_SECRET" ]]; then
-                oc create secret docker-registry $SECRET_NAME \
-                  --docker-username=$USER_NAME \
-                  --docker-password=$E_KEY \
-                  --docker-server=$IDIG_IMG_REGISTRY \
-                  --namespace=$NS_NAME
-              else
-                oc create secret generic $SECRET_NAME \
-                    -n $NS_NAME \
-                    --from-file=.dockercfg=dockercfg.json \
-                    --type=kubernetes.io/dockercfg
-              fi
+            if [[ -n "$(oc get secret $SECRET_NAME -n $NS_NAME --no-headers --ignore-not-found=true)" ]]; then
+              echo "Deleting existing secret $SECRET_NAME in namespace $NS_NAME"
+              oc delete secret $SECRET_NAME -n $NS_NAME
+              echo "Re-creating secret $SECRET_NAME in namespace $NS_NAME"
             else
-              echo "idig-registry-secret already exists in namespace $NS_NAME"
+              echo "Creating secret $SECRET_NAME in namespace $NS_NAME..."
             fi
+            
+            oc create secret docker-registry $SECRET_NAME \
+              --docker-username=$USER_NAME \
+              --docker-password=$E_KEY \
+              --docker-server=$IDIG_IMG_REGISTRY \
+              --namespace=$NS_NAME
         - name: VERSION
           value: latest
       runAfter:
